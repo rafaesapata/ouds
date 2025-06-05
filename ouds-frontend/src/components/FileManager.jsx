@@ -21,7 +21,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
   const fetchFiles = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/service/api/workspace/files', {
+      const response = await fetch(`/service/api/workspace/files?session_id=${sessionId || ''}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -139,7 +139,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
 
   const downloadFile = async (filename) => {
     try {
-      const response = await fetch(`/service/api/workspace/files/${encodeURIComponent(filename)}/download`, {
+      const response = await fetch(`/service/api/workspace/files/${encodeURIComponent(filename)}/download?session_id=${sessionId || ''}`, {
         method: 'GET',
       });
 
@@ -168,7 +168,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
     }
 
     try {
-      const response = await fetch(`/service/api/workspace/files/${encodeURIComponent(filename)}/preview`, {
+      const response = await fetch(`/service/api/workspace/files/${encodeURIComponent(filename)}/preview?session_id=${sessionId || ''}`, {
         method: 'GET',
       });
 
@@ -191,7 +191,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
     }
 
     try {
-      const response = await fetch(`/service/api/workspace/files/${encodeURIComponent(filename)}`, {
+      const response = await fetch(`/service/api/workspace/files/${encodeURIComponent(filename)}?session_id=${sessionId || ''}`, {
         method: 'DELETE',
       });
 
@@ -218,6 +218,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
     setUploading(true);
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('session_id', sessionId || '');
 
     try {
       const response = await fetch('/service/api/workspace/files/upload', {

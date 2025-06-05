@@ -932,18 +932,42 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
 
 # File management endpoints
+
+def get_workspace_path(workspace_id: str = "default"):
+    """Get the workspace path for a specific workspace ID"""
+    from app.config import config
+    if workspace_id == "default":
+        return config.workspace_root
+    else:
+        # Create workspace-specific directory
+        workspace_path = config.workspace_root.parent / f"workspace_{workspace_id}"
+        workspace_path.mkdir(exist_ok=True)
+        return workspace_path
+
 @app.get("/api/workspace/files", response_model=FileListResponse)
-async def list_workspace_files(workspace_id: str = "default"):
-    """List all files in the workspace directory."""
+async def list_workspace_files(session_id: Optional[str] = None):
+    """List all files in the workspace directory for the current session."""
     try:
-        # Use consistent workspace directory with agent
-        from app.config import config
-        workspace_path = config.workspace_root
+        # Get workspace_id from session or use default
+        workspace_id = "default"
+        if session_id:
+            # Find workspace_id for this session
+            for ws_id, sessions in session_manager.sessions.items():
+                if session_id in sessions:
+                    workspace_id = ws_id
+                    break
+        
+        # Use workspace-specific directory
+        workspace_path = get_workspace_path(workspace_id)
         workspace_path.mkdir(exist_ok=True)
         
         files = []
         for file_path in workspace_path.rglob("*"):
             if file_path.is_file():
+                # Skip hidden files and system files
+                if file_path.name.startswith('.'):
+                    continue
+                    
                 stat = file_path.stat()
                 files.append(FileInfo(
                     name=file_path.name,
@@ -968,31 +992,39 @@ async def list_workspace_files(workspace_id: str = "default"):
 
 
 @app.get("/api/workspace/files/{filename}/download")
-async def download_workspace_file(filename: str, workspace_id: str = "default"):
+async def download_workspace_file(filename: str, session_id: Optional[str] = None):
     """Download a file from the workspace."""
     try:
-        # Use consistent workspace directory with agent
-        from app.config import config
-        workspace_path = config.workspace_root
+        # Get workspace_id from session or use default
+        workspace_id = "default"
+        if session_id:
+            # Find workspace_id for this session
+            for ws_id, sessions in session_manager.sessions.items():
+                if session_id in sessions:
+                    workspace_id = ws_id
+                    break
+                    
+        # Use workspace-specific directory
+        workspace_path = get_workspace_path(workspace_id)
         file_path = workspace_path / filename
         
         # Security check: ensure file is within workspace
         if not str(file_path.resolve()).startswith(str(workspace_path.resolve())):
-            raise HTTPException(status_code=403, detail="Access denied")
+            raise HTTPException(status_code=403, detail="Access denied: file outside workspace")
         
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
         
         if not file_path.is_file():
-            raise HTTPException(status_code=400, detail="Not a file")
+            raise HTTPException(status_code=400, detail="Path is not a file")
         
         # Determine media type
         media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
         
         return FileResponse(
             path=str(file_path),
-            filename=filename,
-            media_type=media_type
+            media_type=media_type,
+            filename=filename
         )
     
     except HTTPException:
@@ -1003,12 +1035,20 @@ async def download_workspace_file(filename: str, workspace_id: str = "default"):
 
 
 @app.get("/api/workspace/files/{filename}/preview")
-async def preview_workspace_file(filename: str, workspace_id: str = "default"):
+async def preview_workspace_file(filename: str, session_id: Optional[str] = None):
     """Preview a text file from the workspace."""
     try:
-        # Use consistent workspace directory with agent
-        from app.config import config
-        workspace_path = config.workspace_root
+        # Get workspace_id from session or use default
+        workspace_id = "default"
+        if session_id:
+            # Find workspace_id for this session
+            for ws_id, sessions in session_manager.sessions.items():
+                if session_id in sessions:
+                    workspace_id = ws_id
+                    break
+                    
+        # Use workspace-specific directory
+        workspace_path = get_workspace_path(workspace_id)
         file_path = workspace_path / filename
         
         # Security check: ensure file is within workspace
@@ -1047,12 +1087,20 @@ async def preview_workspace_file(filename: str, workspace_id: str = "default"):
 
 
 @app.delete("/api/workspace/files/{filename}")
-async def delete_workspace_file(filename: str, workspace_id: str = "default"):
+async def delete_workspace_file(filename: str, session_id: Optional[str] = None):
     """Delete a file from the workspace."""
     try:
-        # Use consistent workspace directory with agent
-        from app.config import config
-        workspace_path = config.workspace_root
+        # Get workspace_id from session or use default
+        workspace_id = "default"
+        if session_id:
+            # Find workspace_id for this session
+            for ws_id, sessions in session_manager.sessions.items():
+                if session_id in sessions:
+                    workspace_id = ws_id
+                    break
+                    
+        # Use workspace-specific directory
+        workspace_path = get_workspace_path(workspace_id)
         file_path = workspace_path / filename
         
         # Security check: ensure file is within workspace
@@ -1077,12 +1125,20 @@ async def delete_workspace_file(filename: str, workspace_id: str = "default"):
 
 
 @app.post("/api/workspace/files/upload", response_model=UploadResponse)
-async def upload_workspace_file(file: UploadFile = File(...), workspace_id: str = "default"):
+async def upload_workspace_file(file: UploadFile = File(...), session_id: Optional[str] = None):
     """Upload a file to the workspace."""
     try:
-        # Use consistent workspace directory with agent
-        from app.config import config
-        workspace_path = config.workspace_root
+        # Get workspace_id from session or use default
+        workspace_id = "default"
+        if session_id:
+            # Find workspace_id for this session
+            for ws_id, sessions in session_manager.sessions.items():
+                if session_id in sessions:
+                    workspace_id = ws_id
+                    break
+                    
+        # Use workspace-specific directory
+        workspace_path = get_workspace_path(workspace_id)
         workspace_path.mkdir(exist_ok=True)
         
         # Validate file
