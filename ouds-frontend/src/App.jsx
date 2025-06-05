@@ -941,7 +941,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v2.1.0</span>
+              <span>v2.2.0</span>
               {workspaceId && workspaceId !== 'default' && (
                 <>
                   <span>•</span>

@@ -76,9 +76,21 @@ class ConversationRecord:
 class WorkspaceKnowledgeManager:
     """Gerenciador de conhecimento por workspace"""
     
-    def __init__(self, base_path: str = "/home/ubuntu/ouds-project/workspace_knowledge"):
-        self.base_path = Path(base_path)
-        self.base_path.mkdir(exist_ok=True)
+    def __init__(self, base_path: Optional[str] = None):
+        if base_path is None:
+            # Detectar caminho dinamicamente baseado na configuração
+            try:
+                from app.config import config
+                self.base_path = config.workspace_root / "knowledge"
+            except ImportError:
+                # Fallback: usar caminho relativo ao arquivo atual
+                current_file = Path(__file__).resolve()
+                project_root = current_file.parent.parent.parent
+                self.base_path = project_root / "workspace" / "knowledge"
+        else:
+            self.base_path = Path(base_path)
+        
+        self.base_path.mkdir(parents=True, exist_ok=True)
         
     def _get_workspace_path(self, workspace_id: str) -> Path:
         """Retorna o caminho do workspace"""

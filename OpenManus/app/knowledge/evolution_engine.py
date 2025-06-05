@@ -212,7 +212,18 @@ class KnowledgeEvolutionEngine:
     def __init__(self):
         self.analyzer = ConversationAnalyzer()
         self.learning_patterns: Dict[str, Dict[str, LearningPattern]] = defaultdict(dict)
-        self.evolution_log_path = Path("/home/ubuntu/ouds-project/workspace_knowledge")
+        
+        # Detectar caminho dinamicamente
+        try:
+            from app.config import config
+            self.evolution_log_path = config.workspace_root / "knowledge"
+        except ImportError:
+            # Fallback: usar caminho relativo ao arquivo atual
+            current_file = Path(__file__).resolve()
+            project_root = current_file.parent.parent.parent
+            self.evolution_log_path = project_root / "workspace" / "knowledge"
+        
+        self.evolution_log_path.mkdir(parents=True, exist_ok=True)
     
     async def process_conversation(self, conversation: ConversationRecord, workspace_id: str):
         """Processa uma conversa para aprendizado"""

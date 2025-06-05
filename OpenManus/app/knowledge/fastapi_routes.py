@@ -313,10 +313,21 @@ def register_knowledge_routers(app):
 def initialize_knowledge_system():
     """Inicializa o sistema de conhecimento"""
     try:
-        # Criar diretórios necessários
-        import os
-        os.makedirs("/home/ubuntu/ouds-project/workspace_knowledge", exist_ok=True)
-        os.makedirs("/home/ubuntu/ouds-project/OpenManus/config", exist_ok=True)
+        # Criar diretórios necessários dinamicamente
+        try:
+            from app.config import config
+            knowledge_path = config.workspace_root / "knowledge"
+            config_path = config.workspace_root.parent / "config"
+        except ImportError:
+            # Fallback: usar caminho relativo ao arquivo atual
+            from pathlib import Path
+            current_file = Path(__file__).resolve()
+            project_root = current_file.parent.parent.parent
+            knowledge_path = project_root / "workspace" / "knowledge"
+            config_path = project_root / "config"
+        
+        knowledge_path.mkdir(parents=True, exist_ok=True)
+        config_path.mkdir(parents=True, exist_ok=True)
         
         logger.info("Sistema de conhecimento inicializado com sucesso")
         return True

@@ -76,9 +76,21 @@ class RoutingRule:
 class LLMRouter:
     """Roteador inteligente para múltiplas LLMs"""
     
-    def __init__(self, config_path: str = "/home/ubuntu/ouds-project/OpenManus/config/llm_config.json"):
-        self.config_path = Path(config_path)
-        self.config_path.parent.mkdir(exist_ok=True)
+    def __init__(self, config_path: Optional[str] = None):
+        if config_path is None:
+            # Detectar caminho dinamicamente
+            try:
+                from app.config import config
+                self.config_path = config.workspace_root.parent / "config" / "llm_config.json"
+            except ImportError:
+                # Fallback: usar caminho relativo ao arquivo atual
+                current_file = Path(__file__).resolve()
+                project_root = current_file.parent.parent.parent
+                self.config_path = project_root / "config" / "llm_config.json"
+        else:
+            self.config_path = Path(config_path)
+        
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
         
         self.llm_configs: Dict[LLMProvider, LLMConfig] = {}
         self.performance_metrics: Dict[LLMProvider, LLMPerformanceMetrics] = {}
