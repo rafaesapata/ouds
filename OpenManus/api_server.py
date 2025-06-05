@@ -506,8 +506,8 @@ async def get_session_history(session_id: str):
     return {"session_id": session_id, "messages": messages}
 
 
-@app.post("/api/chat/stream")
-async def chat_stream_endpoint(request: ChatRequest):
+@app.post("/chat/stream")
+async def chat_stream_endpoint_v2(request: ChatRequest):
     """Streaming chat endpoint with task progress updates."""
     
     async def generate_response():
