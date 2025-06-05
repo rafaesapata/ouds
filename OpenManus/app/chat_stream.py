@@ -5,6 +5,7 @@ que não depende de objetos complexos ou métodos que possam causar erros.
 """
 import json
 import logging
+import os
 from typing import AsyncGenerator, Dict, List, Optional, Any
 
 from fastapi import Request, HTTPException
@@ -21,10 +22,39 @@ DEFAULT_MAX_TOKENS = 1000
 
 # Importações necessárias
 try:
+    import aiohttp
+except ImportError:
+    logger.warning("aiohttp não disponível - funcionalidades de HTTP assíncrono limitadas")
+
+try:
     from openai import AsyncOpenAI
+except ImportError:
+    logger.error("Falha ao importar OpenAI - instale com: pip install openai")
+
+# Importar configurações
+try:
+    # Tentar importar configurações simplificadas
+    from app.chat_stream_config import API_KEY, API_BASE, MODEL, TEMPERATURE, MAX_TOKENS
+    logger.info("Usando configurações simplificadas para streaming de chat")
+except ImportError:
+    logger.warning("Falha ao importar configurações simplificadas - usando variáveis de ambiente")
+    # Configuração de fallback
+    API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    API_BASE = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1")
+    MODEL = DEFAULT_MODEL
+    TEMPERATURE = DEFAULT_TEMPERATURE
+    MAX_TOKENS = DEFAULT_MAX_TOKENS
+
+# Importar função de contexto de conhecimento
+try:
     from app.knowledge.chat_integration import get_context_for_chat
 except ImportError:
-    logger.error("Falha ao importar dependências necessárias")
+    logger.error("Falha ao importar get_context_for_chat - contexto de conhecimento não estará disponível")
+    
+    # Função de fallback
+    async def get_context_for_chat(message, workspace_id):
+        logger.warning(f"Usando função de fallback para get_context_for_chat (workspace: {workspace_id})")
+        return None
 
 
 async def simple_chat_stream_endpoint(request: Request):
@@ -72,50 +102,57 @@ async def direct_chat_stream(message: str, session_id: str, workspace_id: str = 
             # Continue without context
         
         # Create OpenAI client directly
-        from app.config import config
-        client = AsyncOpenAI(
-            api_key=config.llm.api_key,
-            base_url=config.llm.api_base,
-        )
-        
-        # Prepare messages
-        messages = []
-        
-        # Add system message
-        messages.append({
-            "role": "system",
-            "content": "You are a helpful assistant. Respond to the user's message."
-        })
-        
-        # Add user message with context if available
-        user_content = message
-        if context:
-            user_content += f"\n\nRelevant context: {context}"
-        
-        messages.append({
-            "role": "user",
-            "content": user_content
-        })
-        
-        # Stream response directly from OpenAI
         try:
-            # Make the API call with streaming
-            stream = await client.chat.completions.create(
-                model=DEFAULT_MODEL,
-                messages=messages,
-                temperature=DEFAULT_TEMPERATURE,
-                max_tokens=DEFAULT_MAX_TOKENS,
-                stream=True
+            client = AsyncOpenAI(
+                api_key=API_KEY,
+                base_url=API_BASE,
             )
             
-            # Process streaming response
-            async for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': content})}\n\n"
+            # Prepare messages
+            messages = []
+            
+            # Add system message
+            messages.append({
+                "role": "system",
+                "content": "You are a helpful assistant. Respond to the user's message."
+            })
+            
+            # Add user message with context if available
+            user_content = message
+            if context:
+                user_content += f"\n\nRelevant context: {context}"
+            
+            messages.append({
+                "role": "user",
+                "content": user_content
+            })
+            
+            # Stream response directly from OpenAI
+            try:
+                # Make the API call with streaming
+                stream = await client.chat.completions.create(
+                    model=MODEL,
+                    messages=messages,
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_TOKENS,
+                    stream=True
+                )
+                
+                # Process streaming response
+                async for chunk in stream:
+                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': content})}\n\n"
+            except Exception as e:
+                logger.error(f"Error in OpenAI streaming: {e}", exc_info=True)
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+                # Fallback response
+                yield f"data: {json.dumps({'type': 'chunk', 'content': 'Desculpe, ocorreu um erro ao processar sua mensagem.'})}\n\n"
         except Exception as e:
-            logger.error(f"Error in OpenAI streaming: {e}", exc_info=True)
+            logger.error(f"Error creating OpenAI client: {e}", exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+            # Fallback response
+            yield f"data: {json.dumps({'type': 'chunk', 'content': 'Desculpe, ocorreu um erro ao conectar com o serviço de IA.'})}\n\n"
         
         # End streaming
         yield f"data: {json.dumps({'type': 'end', 'session_id': session_id})}\n\n"
@@ -124,4 +161,6 @@ async def direct_chat_stream(message: str, session_id: str, workspace_id: str = 
         logger.error(f"Error in direct chat stream: {e}", exc_info=True)
         error_message = str(e)
         yield f"data: {json.dumps({'type': 'error', 'error': error_message})}\n\n"
-
+        # Fallback response
+        yield f"data: {json.dumps({'type': 'chunk', 'content': 'Desculpe, ocorreu um erro inesperado.'})}\n\n"
+        yield f"data: {json.dumps({'type': 'end', 'session_id': session_id})}\n\n"
