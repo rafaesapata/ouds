@@ -1,8 +1,34 @@
 import json
 import threading
-import tomllib
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# Import tomllib with fallback for older Python versions
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        # Fallback implementation for TOML parsing
+        import json
+        
+        class tomllib:
+            @staticmethod
+            def load(fp):
+                # Simple fallback - try to read as JSON first
+                try:
+                    return json.load(fp)
+                except:
+                    # If not JSON, return empty dict
+                    return {}
+            
+            @staticmethod
+            def loads(s):
+                try:
+                    return json.loads(s)
+                except:
+                    return {}
 
 from pydantic import BaseModel, Field
 

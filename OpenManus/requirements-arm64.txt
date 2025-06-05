@@ -26,6 +26,9 @@ pyyaml>=6.0.0
 loguru>=0.6.0
 tenacity>=8.0.0
 
+# TOML support (fallback)
+tomli>=2.0.0
+
 # MCP Alternatives para ARM64
 # Opção 1: MCP oficial (se disponível)
 # mcp>=1.9.0

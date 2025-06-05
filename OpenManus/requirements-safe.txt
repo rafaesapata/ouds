@@ -28,6 +28,9 @@ pyyaml>=6.0.0
 loguru>=0.6.0
 tenacity>=8.0.0
 
+# TOML support (fallback)
+tomli>=2.0.0
+
 # MCP Support
 httpx-sse>=0.3.0
 sse-starlette>=1.0.0

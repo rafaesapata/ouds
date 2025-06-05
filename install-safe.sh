@@ -58,6 +58,7 @@ critical_packages=(
     "aiofiles>=0.8.0"
     "loguru>=0.6.0"
     "tenacity>=8.0.0"
+    "tomli>=2.0.0"
 )
 
 # Pacotes opcionais

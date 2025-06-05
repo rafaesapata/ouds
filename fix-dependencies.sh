@@ -224,6 +224,7 @@ critical_packages=(
     "tenacity>=8.0.0"
     "loguru>=0.6.0"
     "pyyaml>=6.0.0"
+    "tomli>=2.0.0"
 )
 
 echo ""

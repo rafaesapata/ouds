@@ -26,3 +26,6 @@ loguru>=0.6.0
 # YAML support (para configurações)
 pyyaml>=6.0
 
+# TOML support (fallback para Python < 3.11)
+tomli>=2.0.0
+
