@@ -1,34 +1,64 @@
 """
-OUDS - Módulo de Base de Conhecimento por Workspace
-=================================================
-
-Este módulo integra todos os componentes do sistema de conhecimento:
-- Gerenciamento de conhecimento por workspace
-- Roteamento inteligente de múltiplas LLMs
-- Evolução e aprendizado contínuo
-- Base de conhecimento global do sistema
-- Integração com sistema de arquivos
+Módulo de conhecimento para o sistema OUDS.
+Este módulo fornece funcionalidades para gerenciar e acessar
+a base de conhecimento do sistema.
 """
 
-from .workspace_knowledge import knowledge_manager, KnowledgeEntry, ConversationRecord
-from .llm_router import llm_router, ContextType, LLMProvider
-from .evolution_engine import evolution_engine
-from .global_knowledge import global_knowledge, get_global_knowledge, get_system_context_for_llm
-from .file_integration import file_access_manager, get_file_context_for_chat
+# Importações para facilitar o acesso a funcionalidades comuns
+try:
+    from app.knowledge.global_knowledge import get_system_context_for_llm
+except ImportError:
+    import logging
+    logging.getLogger(__name__).error("Falha ao importar get_system_context_for_llm")
 
-__version__ = "1.0.0"
-__all__ = [
-    "knowledge_manager",
-    "llm_router", 
-    "evolution_engine",
-    "global_knowledge",
-    "get_global_knowledge",
-    "get_system_context_for_llm",
-    "file_access_manager",
-    "get_file_context_for_chat",
-    "KnowledgeEntry",
-    "ConversationRecord",
-    "ContextType",
-    "LLMProvider"
-]
+try:
+    from app.knowledge.workspace_knowledge import KnowledgeManager
+    # Instância global do gerenciador de conhecimento
+    knowledge_manager = KnowledgeManager()
+except ImportError:
+    import logging
+    logging.getLogger(__name__).error("Falha ao importar KnowledgeManager")
+
+# Definição de tipos de dados
+class ConversationRecord:
+    """Registro de uma conversa entre usuário e assistente."""
+    
+    def __init__(self, id, timestamp, user_message, assistant_response, 
+                 llm_used=None, context_retrieved=None, knowledge_learned=None,
+                 processing_time=None):
+        self.id = id
+        self.timestamp = timestamp
+        self.user_message = user_message
+        self.assistant_response = assistant_response
+        self.llm_used = llm_used or "unknown"
+        self.context_retrieved = context_retrieved or []
+        self.knowledge_learned = knowledge_learned or []
+        self.processing_time = processing_time or 0.0
+    
+    def to_dict(self):
+        """Converte o registro para um dicionário."""
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp,
+            "user_message": self.user_message,
+            "assistant_response": self.assistant_response,
+            "llm_used": self.llm_used,
+            "context_retrieved": self.context_retrieved,
+            "knowledge_learned": self.knowledge_learned,
+            "processing_time": self.processing_time
+        }
+    
+    @classmethod
+    def from_dict(cls, data):
+        """Cria um registro a partir de um dicionário."""
+        return cls(
+            id=data.get("id"),
+            timestamp=data.get("timestamp"),
+            user_message=data.get("user_message"),
+            assistant_response=data.get("assistant_response"),
+            llm_used=data.get("llm_used"),
+            context_retrieved=data.get("context_retrieved"),
+            knowledge_learned=data.get("knowledge_learned"),
+            processing_time=data.get("processing_time")
+        )
 

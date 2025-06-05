@@ -47,13 +47,31 @@ except ImportError:
 
 # Importar função de contexto de conhecimento
 try:
+    # Importar diretamente do módulo chat_integration
     from app.knowledge.chat_integration import get_context_for_chat
+    logger.info("Função get_context_for_chat importada com sucesso")
 except ImportError:
     logger.error("Falha ao importar get_context_for_chat - contexto de conhecimento não estará disponível")
     
-    # Função de fallback
+    # Função de fallback simplificada
     async def get_context_for_chat(message, workspace_id):
+        """Função de fallback para get_context_for_chat"""
         logger.warning(f"Usando função de fallback para get_context_for_chat (workspace: {workspace_id})")
+        try:
+            # Tentar importar o módulo knowledge_manager diretamente
+            from app.knowledge import knowledge_manager
+            
+            # Buscar conhecimento relevante do workspace
+            relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=3)
+            
+            if relevant_knowledge:
+                context = "Conhecimento relevante:\n"
+                for entry in relevant_knowledge:
+                    context += f"- {entry.content}\n"
+                return context
+        except Exception as e:
+            logger.error(f"Erro na função de fallback para get_context_for_chat: {e}")
+        
         return None
 
 
