@@ -34,7 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import agent module
-from app.agent import Message, Role
+from app.schema import Message, Role
 from app.agent.session import Command, CommandQueueResponse, SessionManager
 
 # Create FastAPI app
