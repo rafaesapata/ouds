@@ -14,6 +14,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [abortController, setAbortController] = useState(null)
   const messagesEndRef = useRef(null)
   
   // Use WebSocket hook for real-time task progress
@@ -57,6 +58,26 @@ function App() {
     testConnection();
   }, [])
 
+  const cancelRequest = () => {
+    if (abortController) {
+      console.log('🛑 Canceling request...');
+      abortController.abort();
+      setAbortController(null);
+      setIsLoading(false);
+      resetTasks();
+      
+      // Add cancellation message
+      const cancelMessage = {
+        id: Date.now(),
+        role: 'assistant',
+        content: 'Operação cancelada pelo usuário.',
+        timestamp: new Date().toISOString(),
+        isError: true
+      };
+      setMessages(prev => [...prev, cancelMessage]);
+    }
+  };
+
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
 
@@ -68,21 +89,37 @@ function App() {
     }
 
     setMessages(prev => [...prev, userMessage])
+    const currentMessage = inputMessage;
     setInputMessage('')
     setIsLoading(true)
+
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
 
     // Reset tasks for new request
     resetTasks()
 
+    // Add debug task to show progress
+    console.log('🎯 Starting new request, should show TaskProgress...');
+
     try {
-      // Use the new API system
+      // Add timeout to the request
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 60000); // 60 seconds timeout
+
+      // Use the new API system with abort signal
       const data = await apiRequest(API_ENDPOINTS.CHAT, {
         method: 'POST',
+        signal: controller.signal,
         body: JSON.stringify({
-          message: inputMessage,
+          message: currentMessage,
           session_id: sessionId
         })
       });
+      
+      clearTimeout(timeoutId);
       
       if (!sessionId) {
         setSessionId(data.session_id)
@@ -97,6 +134,11 @@ function App() {
 
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('🛑 Request was cancelled');
+        return; // Don't show error message for cancelled requests
+      }
+      
       console.error('❌ Error sending message:', error)
 
       const errorMessage = {
@@ -109,6 +151,7 @@ function App() {
       setMessages(prev => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
+      setAbortController(null)
     }
   }
 
@@ -250,7 +293,74 @@ function App() {
 
         {/* Input Area */}
         <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-          {/* Task Progress */}
+          {/* Task Progress - Debug version */}
+          {(isLoading || tasks.length > 0) && (
+            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                🎯 Task Progress {currentStep && totalSteps && `- Step ${currentStep}/${totalSteps}`}
+              </div>
+              
+              {/* Debug info */}
+              <div className="text-xs text-blue-600 dark:text-blue-300 mb-2">
+                Debug: isLoading={isLoading.toString()}, tasks.length={tasks.length}, sessionId={sessionId || 'null'}
+              </div>
+              
+              {/* Progress bar */}
+              {currentStep && totalSteps && (
+                <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2 mb-3">
+                  <div 
+                    className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+                  ></div>
+                </div>
+              )}
+              
+              {/* Tasks list */}
+              {tasks.length > 0 ? (
+                <div className="space-y-2">
+                  {tasks.map((task, index) => (
+                    <div key={task.id || index} className="text-sm">
+                      <div className="flex items-center space-x-2">
+                        <span className={`w-2 h-2 rounded-full ${
+                          task.status === 'running' ? 'bg-blue-500 animate-pulse' :
+                          task.status === 'completed' ? 'bg-green-500' :
+                          task.status === 'error' ? 'bg-red-500' : 'bg-gray-400'
+                        }`}></span>
+                        <span className="font-medium">{task.title || 'Processing...'}</span>
+                        <span className="text-xs text-gray-500">{task.subtitle}</span>
+                      </div>
+                      
+                      {task.thoughts && (
+                        <div className="ml-4 mt-1 text-xs text-gray-600 dark:text-gray-400">
+                          ✨ {task.thoughts}
+                        </div>
+                      )}
+                      
+                      {task.tools && task.tools.length > 0 && (
+                        <div className="ml-4 mt-1 text-xs text-gray-600 dark:text-gray-400">
+                          🛠️ Tools: {task.tools.join(', ')}
+                        </div>
+                      )}
+                      
+                      {task.error && (
+                        <div className="ml-4 mt-1 text-xs text-red-600 dark:text-red-400">
+                          ❌ {task.error}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : isLoading && (
+                <div className="text-sm text-blue-600 dark:text-blue-300">
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Aguardando resposta do backend...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
           <TaskProgress 
             isVisible={isLoading || tasks.length > 0}
             tasks={tasks}
@@ -271,12 +381,20 @@ function App() {
               />
             </div>
             <Button
-              onClick={sendMessage}
-              disabled={isLoading || !inputMessage.trim() || !isConnected}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
+              onClick={isLoading ? cancelRequest : sendMessage}
+              disabled={!isConnected || (!isLoading && !inputMessage.trim())}
+              className={`px-4 py-2 ${
+                isLoading 
+                  ? 'bg-red-600 hover:bg-red-700 text-white' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+              title={isLoading ? 'Cancelar operação' : 'Enviar mensagem'}
             >
               {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Cancelar
+                </>
               ) : (
                 <Send className="h-4 w-4" />
               )}
