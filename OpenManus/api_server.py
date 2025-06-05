@@ -170,7 +170,10 @@ async def process_chat_stream(session_id: str, message: str, workspace_id: str =
     """Process a chat message and stream the response."""
     try:
         # Get agent for this session
-        if workspace_id not in session_manager.agents or session_id not in session_manager.agents[workspace_id]:
+        if workspace_id not in session_manager.agents:
+            session_manager.agents[workspace_id] = {}
+            
+        if session_id not in session_manager.agents[workspace_id]:
             # Create agent if not exists
             from app.agent.toolcall import ToolCallAgent
             session_manager.agents[workspace_id][session_id] = ToolCallAgent(name=f"agent_{session_id}")
@@ -186,6 +189,12 @@ async def process_chat_stream(session_id: str, message: str, workspace_id: str =
             role=Role.USER,
             content=message
         )
+        
+        # Ensure memory is initialized
+        if not hasattr(agent, 'memory') or agent.memory is None:
+            from app.agent.memory import Memory
+            agent.memory = Memory()
+            
         agent.memory.add_message(user_message)
         
         # Run the agent
@@ -212,7 +221,7 @@ async def process_chat_stream(session_id: str, message: str, workspace_id: str =
         yield f"data: {json.dumps({'type': 'end', 'session_id': session_id})}\n\n"
         
     except Exception as e:
-        logger.error(f"Error in streaming chat: {e}")
+        logger.error(f"Error in streaming chat: {e}", exc_info=True)
         error_message = str(e)
         yield f"data: {json.dumps({'type': 'error', 'error': error_message})}\n\n"
 

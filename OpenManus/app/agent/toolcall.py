@@ -172,6 +172,8 @@ class ToolCallAgent(ReActAgent):
         """Run the agent with streaming responses"""
         self.state = AgentState.RUNNING
         self.current_step = 0
+        accumulated_content = ""
+        accumulated_tool_calls = []
 
         while self.state == AgentState.RUNNING and self.current_step < self.max_steps:
             self.current_step += 1
@@ -186,6 +188,10 @@ class ToolCallAgent(ReActAgent):
                     user_msg = Message.user_message(self.next_step_prompt)
                     self.messages += [user_msg]
 
+                # Reset accumulators
+                accumulated_content = ""
+                accumulated_tool_calls = []
+
                 # Get response with tool options and streaming
                 async for chunk in self.llm.ask_tool_streaming(
                     messages=self.messages,
@@ -199,19 +205,31 @@ class ToolCallAgent(ReActAgent):
                     base64_image=self._current_base64_image,
                 ):
                     if chunk.get("content"):
+                        accumulated_content += chunk["content"]
                         yield chunk["content"]
+                    
+                    if chunk.get("tool_calls"):
+                        accumulated_tool_calls.extend(chunk["tool_calls"])
                 
-                # Get the final response
-                response = await self.llm.ask_tool(
-                    messages=self.messages,
-                    system_msgs=(
-                        [Message.system_message(self.system_prompt)]
-                        if self.system_prompt
-                        else None
-                    ),
-                    tools=self.available_tools.to_openai_tools(),
-                    tool_choice=self.tool_choices,
-                    base64_image=self._current_base64_image,
+                # Create the complete response message
+                from app.schema import ToolCall as SchemaToolCall
+                tool_calls = []
+                if accumulated_tool_calls:
+                    for tc in accumulated_tool_calls:
+                        tool_calls.append(SchemaToolCall(
+                            id=tc.get("id", ""),
+                            type=tc.get("type", "function"),
+                            function={
+                                "name": tc["function"]["name"],
+                                "arguments": tc["function"]["arguments"]
+                            }
+                        ))
+
+                # Create assistant message
+                response = Message(
+                    role="assistant",
+                    content=accumulated_content if accumulated_content else None,
+                    tool_calls=tool_calls if tool_calls else None
                 )
 
                 # Add assistant response to messages
@@ -241,7 +259,7 @@ class ToolCallAgent(ReActAgent):
 
         # Return final response
         for msg in reversed(self.messages):
-            if msg.role == "assistant" and msg.content and not msg.tool_calls:
+            if hasattr(msg, 'role') and msg.role == "assistant" and hasattr(msg, 'content') and msg.content and not (hasattr(msg, 'tool_calls') and msg.tool_calls):
                 yield {"final": msg.content}
                 return
         
