@@ -15,6 +15,7 @@ function App() {
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState(null)
+  const [workspaceId, setWorkspaceId] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const [abortController, setAbortController] = useState(null)
   const [streamingMessage, setStreamingMessage] = useState('')
@@ -24,6 +25,19 @@ function App() {
   const [isUploadingFile, setIsUploadingFile] = useState(false)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
+  
+  // Extract workspace from URL
+  useEffect(() => {
+    const path = window.location.pathname;
+    const workspaceMatch = path.match(/^\/workspace\/(.+)$/);
+    if (workspaceMatch) {
+      const workspace = workspaceMatch[1];
+      setWorkspaceId(workspace);
+      console.log('🏢 Workspace detected:', workspace);
+    } else {
+      setWorkspaceId('default');
+    }
+  }, []);
   
   // Use WebSocket hook for real-time task progress
   const { tasks, currentStep, totalSteps, resetTasks } = useTaskProgressWebSocket(sessionId)
@@ -37,7 +51,7 @@ function App() {
   }, [messages, streamingMessage])
 
   useEffect(() => {
-    // Test API connection using the new API system
+    // Test API connection and initialize workspace
     const testConnection = async () => {
       console.log('🔍 Testing backend connection...');
       const healthCheck = await checkBackendHealth();
@@ -45,6 +59,19 @@ function App() {
       if (healthCheck.status === 'ok') {
         setIsConnected(true);
         console.log('✅ Connected to OUDS API:', healthCheck.data);
+        
+        // Initialize workspace if detected
+        if (workspaceId && workspaceId !== 'default') {
+          try {
+            const response = await fetch(`/service/workspace/${workspaceId}`);
+            if (response.ok) {
+              const workspaceData = await response.json();
+              console.log('🏢 Workspace initialized:', workspaceData);
+            }
+          } catch (error) {
+            console.error('❌ Failed to initialize workspace:', error);
+          }
+        }
       } else {
         console.error('❌ Failed to connect to OUDS API:', healthCheck.error);
         setIsConnected(false);
@@ -63,8 +90,10 @@ function App() {
       }
     };
     
-    testConnection();
-  }, [])
+    if (workspaceId) {
+      testConnection();
+    }
+  }, [workspaceId])
 
   const cancelRequest = () => {
     if (abortController) {
@@ -126,7 +155,8 @@ function App() {
           message: attachedFile 
             ? `${currentMessage || 'Arquivo enviado'}\n\n📎 Arquivo anexado: ${attachedFile.name}\n${attachedFile.content ? `Conteúdo do arquivo:\n\`\`\`\n${attachedFile.content}\n\`\`\`` : `Arquivo enviado: ${attachedFile.name} (${(attachedFile.size / 1024).toFixed(1)} KB)`}`
             : currentMessage,
-          session_id: sessionId
+          session_id: sessionId,
+          workspace_id: workspaceId
         }),
         signal: controller.signal
       });
@@ -723,7 +753,13 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v1.2.0</span>
+              <span>v1.3.0</span>
+              {workspaceId && workspaceId !== 'default' && (
+                <>
+                  <span>•</span>
+                  <span className="text-blue-600 font-medium">Workspace: {workspaceId}</span>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -158,33 +158,66 @@ class SessionInfo(BaseModel):
         }
 
 
-# Global session management
+# Global session management with workspace support
 class SessionManager:
     def __init__(self):
-        self.sessions: Dict[str, Dict] = {}
-        self.agents: Dict[str, Manus] = {}
-        self.task_progress: Dict[str, List[TaskStatus]] = {}
-        self.websocket_connections: Dict[str, WebSocket] = {}
-        self.command_queues: Dict[str, List[CommandQueueItem]] = {}
-        self.processing_commands: Dict[str, Optional[CommandQueueItem]] = {}
-        self.github_configs: Dict[str, GitHubConfig] = {}
+        # Workspace-based data structures
+        self.workspaces: Dict[str, Dict] = {}  # workspace_id -> workspace_data
+        self.sessions: Dict[str, Dict[str, Dict]] = {}  # workspace_id -> {session_id -> session_data}
+        self.agents: Dict[str, Dict[str, Manus]] = {}  # workspace_id -> {session_id -> agent}
+        self.task_progress: Dict[str, Dict[str, List[TaskStatus]]] = {}  # workspace_id -> {session_id -> tasks}
+        self.websocket_connections: Dict[str, Dict[str, WebSocket]] = {}  # workspace_id -> {session_id -> websocket}
+        self.command_queues: Dict[str, Dict[str, List[CommandQueueItem]]] = {}  # workspace_id -> {session_id -> queue}
+        self.processing_commands: Dict[str, Dict[str, Optional[CommandQueueItem]]] = {}  # workspace_id -> {session_id -> command}
+        self.github_configs: Dict[str, Dict[str, GitHubConfig]] = {}  # workspace_id -> {session_id -> config}
     
-    async def get_or_create_session(self, session_id: Optional[str] = None) -> str:
+    def ensure_workspace(self, workspace_id: str) -> None:
+        """Ensure workspace exists and create directory structure"""
+        if workspace_id not in self.workspaces:
+            # Create workspace data structure
+            self.workspaces[workspace_id] = {
+                "created_at": datetime.now(),
+                "last_activity": datetime.now(),
+                "session_count": 0
+            }
+            self.sessions[workspace_id] = {}
+            self.agents[workspace_id] = {}
+            self.task_progress[workspace_id] = {}
+            self.websocket_connections[workspace_id] = {}
+            self.command_queues[workspace_id] = {}
+            self.processing_commands[workspace_id] = {}
+            self.github_configs[workspace_id] = {}
+            
+            # Create workspace directory structure
+            workspace_dir = f"/tmp/ouds_workspace_{workspace_id}"
+            os.makedirs(workspace_dir, exist_ok=True)
+            
+            logger.info(f"Created new workspace: {workspace_id} at {workspace_dir}")
+    
+    async def get_or_create_session(self, session_id: Optional[str] = None, workspace_id: str = "default") -> str:
+        # Ensure workspace exists
+        self.ensure_workspace(workspace_id)
+        
         if session_id is None:
             session_id = str(uuid.uuid4())
         
-        if session_id not in self.sessions:
-            # Create new session
+        if session_id not in self.sessions[workspace_id]:
+            # Create new session within workspace
             agent = await Manus.create()
-            self.sessions[session_id] = {
+            self.sessions[workspace_id][session_id] = {
                 "created_at": datetime.now(),
                 "last_activity": datetime.now(),
-                "message_count": 0
+                "message_count": 0,
+                "workspace_id": workspace_id
             }
-            self.agents[session_id] = agent
-            self.task_progress[session_id] = []
-            self.command_queues[session_id] = []
-            self.processing_commands[session_id] = None
+            self.agents[workspace_id][session_id] = agent
+            self.task_progress[workspace_id][session_id] = []
+            self.command_queues[workspace_id][session_id] = []
+            self.processing_commands[workspace_id][session_id] = None
+            
+            # Update workspace stats
+            self.workspaces[workspace_id]["session_count"] += 1
+            self.workspaces[workspace_id]["last_activity"] = datetime.now()
             
             # Auto-configure GitHub with default token from environment
             github_token = os.getenv("GITHUB_TOKEN", "")
@@ -194,35 +227,43 @@ class SessionManager:
                     username=None,
                     default_repo=None
                 )
-                self.github_configs[session_id] = default_github_config
+                self.github_configs[workspace_id][session_id] = default_github_config
             
-            logger.info(f"Created new session: {session_id}")
+            logger.info(f"Created new session: {session_id} in workspace: {workspace_id}")
+        
+        # Update session activity
+        if session_id in self.sessions[workspace_id]:
+            self.sessions[workspace_id][session_id]["last_activity"] = datetime.now()
+            self.workspaces[workspace_id]["last_activity"] = datetime.now()
         
         return session_id
     
-    async def cleanup_session(self, session_id: str):
-        if session_id in self.agents:
-            await self.agents[session_id].cleanup()
-            del self.agents[session_id]
-        if session_id in self.sessions:
-            del self.sessions[session_id]
-        if session_id in self.task_progress:
-            del self.task_progress[session_id]
-        if session_id in self.websocket_connections:
-            del self.websocket_connections[session_id]
-        logger.info(f"Cleaned up session: {session_id}")
+    async def cleanup_session(self, session_id: str, workspace_id: str = "default"):
+        if workspace_id in self.agents and session_id in self.agents[workspace_id]:
+            await self.agents[workspace_id][session_id].cleanup()
+            del self.agents[workspace_id][session_id]
+        if workspace_id in self.sessions and session_id in self.sessions[workspace_id]:
+            del self.sessions[workspace_id][session_id]
+        if workspace_id in self.task_progress and session_id in self.task_progress[workspace_id]:
+            del self.task_progress[workspace_id][session_id]
+        if workspace_id in self.websocket_connections and session_id in self.websocket_connections[workspace_id]:
+            del self.websocket_connections[workspace_id][session_id]
+        logger.info(f"Cleaned up session: {session_id} in workspace: {workspace_id}")
     
-    def update_activity(self, session_id: str):
-        if session_id in self.sessions:
-            self.sessions[session_id]["last_activity"] = datetime.now()
-            self.sessions[session_id]["message_count"] += 1
+    def update_activity(self, session_id: str, workspace_id: str = "default"):
+        if workspace_id in self.sessions and session_id in self.sessions[workspace_id]:
+            self.sessions[workspace_id][session_id]["last_activity"] = datetime.now()
+            self.sessions[workspace_id][session_id]["message_count"] += 1
+            self.workspaces[workspace_id]["last_activity"] = datetime.now()
     
-    async def update_task_progress(self, session_id: str, tasks: List[TaskStatus]):
+    async def update_task_progress(self, session_id: str, tasks: List[TaskStatus], workspace_id: str = "default"):
         """Update task progress and notify connected clients"""
-        self.task_progress[session_id] = tasks
+        if workspace_id not in self.task_progress:
+            self.task_progress[workspace_id] = {}
+        self.task_progress[workspace_id][session_id] = tasks
         
         # Send update via WebSocket if connected
-        if session_id in self.websocket_connections:
+        if workspace_id in self.websocket_connections and session_id in self.websocket_connections[workspace_id]:
             try:
                 current_step = len([t for t in tasks if t.status == "completed"])
                 total_steps = len(tasks)
@@ -234,17 +275,22 @@ class SessionManager:
                     total_steps=total_steps
                 )
                 
-                await self.websocket_connections[session_id].send_text(
+                await self.websocket_connections[workspace_id][session_id].send_text(
                     json.dumps(update.dict(), default=str)
                 )
             except Exception as e:
                 logger.error(f"Error sending task progress update: {e}")
                 # Remove broken connection
-                if session_id in self.websocket_connections:
-                    del self.websocket_connections[session_id]
+                if workspace_id in self.websocket_connections and session_id in self.websocket_connections[workspace_id]:
+                    del self.websocket_connections[workspace_id][session_id]
     
-    def add_command_to_queue(self, session_id: str, message: str, priority: int = 1) -> CommandQueueItem:
+    def add_command_to_queue(self, session_id: str, message: str, priority: int = 1, workspace_id: str = "default") -> CommandQueueItem:
         """Add a command to the session's queue."""
+        if workspace_id not in self.command_queues:
+            self.command_queues[workspace_id] = {}
+        if session_id not in self.command_queues[workspace_id]:
+            self.command_queues[workspace_id][session_id] = []
+            
         command = CommandQueueItem(
             id=str(uuid.uuid4()),
             message=message,
@@ -254,11 +300,8 @@ class SessionManager:
             session_id=session_id
         )
         
-        if session_id not in self.command_queues:
-            self.command_queues[session_id] = []
-        
         # Insert based on priority (higher priority first)
-        queue = self.command_queues[session_id]
+        queue = self.command_queues[workspace_id][session_id]
         inserted = False
         for i, item in enumerate(queue):
             if command.priority > item.priority:
@@ -269,43 +312,52 @@ class SessionManager:
         if not inserted:
             queue.append(command)
         
-        logger.info(f"Added command to queue for session {session_id}: {message[:50]}...")
+        logger.info(f"Added command to queue for session {session_id} in workspace {workspace_id}: {message[:50]}...")
         return command
     
-    def get_next_command(self, session_id: str) -> Optional[CommandQueueItem]:
+    def get_next_command(self, session_id: str, workspace_id: str = "default") -> Optional[CommandQueueItem]:
         """Get the next command from the queue."""
-        if session_id not in self.command_queues or not self.command_queues[session_id]:
+        if (workspace_id not in self.command_queues or 
+            session_id not in self.command_queues[workspace_id] or 
+            not self.command_queues[workspace_id][session_id]):
             return None
         
-        command = self.command_queues[session_id].pop(0)
+        command = self.command_queues[workspace_id][session_id].pop(0)
         command.status = "processing"
-        self.processing_commands[session_id] = command
+        self.processing_commands[workspace_id][session_id] = command
         
         return command
     
-    def complete_command(self, session_id: str, command_id: str, success: bool = True):
+    def complete_command(self, session_id: str, command_id: str, success: bool = True, workspace_id: str = "default"):
         """Mark a command as completed."""
-        if session_id in self.processing_commands:
-            current = self.processing_commands[session_id]
+        if (workspace_id in self.processing_commands and 
+            session_id in self.processing_commands[workspace_id]):
+            current = self.processing_commands[workspace_id][session_id]
             if current and current.id == command_id:
                 current.status = "completed" if success else "failed"
-                self.processing_commands[session_id] = None
+                self.processing_commands[workspace_id][session_id] = None
     
-    def get_command_queue_status(self, session_id: str) -> CommandQueueResponse:
+    def get_command_queue_status(self, session_id: str, workspace_id: str = "default") -> CommandQueueResponse:
         """Get the current queue status for a session."""
-        queue = self.command_queues.get(session_id, [])
-        current = self.processing_commands.get(session_id)
+        queue = []
+        if workspace_id in self.command_queues and session_id in self.command_queues[workspace_id]:
+            queue = self.command_queues[workspace_id][session_id]
+        
+        processing = None
+        if workspace_id in self.processing_commands and session_id in self.processing_commands[workspace_id]:
+            processing = self.processing_commands[workspace_id][session_id]
         
         return CommandQueueResponse(
             queue=queue,
-            current_processing=current,
+            processing=processing,
             total_pending=len(queue)
         )
     
-    def is_processing_command(self, session_id: str) -> bool:
+    def is_processing_command(self, session_id: str, workspace_id: str = "default") -> bool:
         """Check if a command is currently being processed."""
-        return (session_id in self.processing_commands and 
-                self.processing_commands[session_id] is not None)
+        return (workspace_id in self.processing_commands and 
+                session_id in self.processing_commands[workspace_id] and
+                self.processing_commands[workspace_id][session_id] is not None)
 
 
 # Initialize FastAPI app
@@ -353,13 +405,32 @@ async def root():
     """Root endpoint with basic info."""
     return {
         "message": "OUDS - Oráculo UDS API Server",
-        "version": "1.0.0",
-        "description": "Sistema de IA conversacional baseado no OpenManus",
+        "version": "1.2.0",
+        "description": "Sistema de IA conversacional baseado no OpenManus com suporte a workspaces",
         "endpoints": {
             "chat": "/api/chat",
             "sessions": "/api/sessions",
-            "websocket": "/ws/{session_id}"
+            "websocket": "/ws/{session_id}",
+            "workspace": "/workspace/{workspace_id}"
         }
+    }
+
+# Workspace route handler
+@app.get("/workspace/{workspace_id}")
+async def workspace_handler(workspace_id: str):
+    """Handle workspace access - create if not exists, load if exists."""
+    # Ensure workspace exists
+    session_manager.ensure_workspace(workspace_id)
+    
+    # Return workspace info
+    workspace_info = session_manager.workspaces[workspace_id]
+    return {
+        "workspace_id": workspace_id,
+        "status": "ready",
+        "created_at": workspace_info["created_at"].isoformat(),
+        "last_activity": workspace_info["last_activity"].isoformat(),
+        "session_count": workspace_info["session_count"],
+        "message": f"Workspace '{workspace_id}' está pronto para uso"
     }
 
 
@@ -367,16 +438,19 @@ async def root():
 async def chat_endpoint(request: ChatRequest):
     """Main chat endpoint for processing user messages with queue support."""
     try:
+        # Extract workspace from request or use default
+        workspace_id = getattr(request, 'workspace_id', 'default')
+        
         # Get or create session
-        session_id = await session_manager.get_or_create_session(request.session_id)
+        session_id = await session_manager.get_or_create_session(request.session_id, workspace_id)
         
         # Check if a command is currently being processed
-        if session_manager.is_processing_command(session_id):
+        if session_manager.is_processing_command(session_id, workspace_id):
             # Add to queue with normal priority
-            command = session_manager.add_command_to_queue(session_id, request.message, priority=1)
+            command = session_manager.add_command_to_queue(session_id, request.message, priority=1, workspace_id=workspace_id)
             
             return ChatResponse(
-                response=f"Comando adicionado à fila. Posição: {len(session_manager.command_queues[session_id])}. Aguarde a conclusão do comando atual.",
+                response=f"Comando adicionado à fila. Posição: {len(session_manager.command_queues[workspace_id][session_id])}. Aguarde a conclusão do comando atual.",
                 session_id=session_id,
                 timestamp=datetime.now(),
                 status="queued"
@@ -390,20 +464,20 @@ async def chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-async def process_chat_command(session_id: str, message: str) -> ChatResponse:
+async def process_chat_command(session_id: str, message: str, workspace_id: str = "default") -> ChatResponse:
     """Process a chat command immediately."""
     try:
-        agent = session_manager.agents[session_id]
+        agent = session_manager.agents[workspace_id][session_id]
         
         # Mark as processing
-        command = session_manager.add_command_to_queue(session_id, message, priority=999)  # High priority for immediate processing
-        current_command = session_manager.get_next_command(session_id)
+        command = session_manager.add_command_to_queue(session_id, message, priority=999, workspace_id=workspace_id)  # High priority for immediate processing
+        current_command = session_manager.get_next_command(session_id, workspace_id)
         
         # Update session activity
-        session_manager.update_activity(session_id)
+        session_manager.update_activity(session_id, workspace_id)
         
         # Process the message with the agent
-        logger.info(f"Processing message in session {session_id}: {message}")
+        logger.info(f"Processing message in session {session_id} workspace {workspace_id}: {message}")
         
         # Add user message to agent memory
         user_message = Message(
@@ -428,10 +502,10 @@ async def process_chat_command(session_id: str, message: str) -> ChatResponse:
         
         # Mark command as completed
         if current_command:
-            session_manager.complete_command(session_id, current_command.id, success=True)
+            session_manager.complete_command(session_id, current_command.id, success=True, workspace_id=workspace_id)
         
         # Process next command in queue if any
-        asyncio.create_task(process_next_command_in_queue(session_id))
+        asyncio.create_task(process_next_command_in_queue(session_id, workspace_id))
         
         return ChatResponse(
             response=response_content,
@@ -444,21 +518,22 @@ async def process_chat_command(session_id: str, message: str) -> ChatResponse:
         logger.error(f"Error processing chat request: {str(e)}")
         
         # Mark command as failed
-        if session_id in session_manager.processing_commands:
-            current = session_manager.processing_commands[session_id]
+        if (workspace_id in session_manager.processing_commands and 
+            session_id in session_manager.processing_commands[workspace_id]):
+            current = session_manager.processing_commands[workspace_id][session_id]
             if current:
-                session_manager.complete_command(session_id, current.id, success=False)
+                session_manager.complete_command(session_id, current.id, success=False, workspace_id=workspace_id)
         
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
 
 
-async def process_next_command_in_queue(session_id: str):
+async def process_next_command_in_queue(session_id: str, workspace_id: str = "default"):
     """Process the next command in the queue for a session."""
     try:
-        next_command = session_manager.get_next_command(session_id)
+        next_command = session_manager.get_next_command(session_id, workspace_id)
         if next_command:
             logger.info(f"Processing next command from queue: {next_command.message[:50]}...")
-            await process_chat_command(session_id, next_command.message)
+            await process_chat_command(session_id, next_command.message, workspace_id)
     except Exception as e:
         logger.error(f"Error processing next command in queue: {e}")
 
@@ -818,10 +893,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
 # File management endpoints
 @app.get("/api/workspace/files", response_model=FileListResponse)
-async def list_workspace_files():
+async def list_workspace_files(workspace_id: str = "default"):
     """List all files in the workspace directory."""
     try:
-        workspace_path = Path("workspace")
+        # Use workspace-specific directory
+        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
         workspace_path.mkdir(exist_ok=True)
         
         files = []
@@ -851,10 +927,11 @@ async def list_workspace_files():
 
 
 @app.get("/api/workspace/files/{filename}/download")
-async def download_workspace_file(filename: str):
+async def download_workspace_file(filename: str, workspace_id: str = "default"):
     """Download a file from the workspace."""
     try:
-        workspace_path = Path("workspace")
+        # Use workspace-specific directory
+        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
         file_path = workspace_path / filename
         
         # Security check: ensure file is within workspace
@@ -884,10 +961,11 @@ async def download_workspace_file(filename: str):
 
 
 @app.get("/api/workspace/files/{filename}/preview")
-async def preview_workspace_file(filename: str):
+async def preview_workspace_file(filename: str, workspace_id: str = "default"):
     """Preview a text file from the workspace."""
     try:
-        workspace_path = Path("workspace")
+        # Use workspace-specific directory
+        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
         file_path = workspace_path / filename
         
         # Security check: ensure file is within workspace
@@ -926,10 +1004,11 @@ async def preview_workspace_file(filename: str):
 
 
 @app.delete("/api/workspace/files/{filename}")
-async def delete_workspace_file(filename: str):
+async def delete_workspace_file(filename: str, workspace_id: str = "default"):
     """Delete a file from the workspace."""
     try:
-        workspace_path = Path("workspace")
+        # Use workspace-specific directory
+        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
         file_path = workspace_path / filename
         
         # Security check: ensure file is within workspace
@@ -954,10 +1033,11 @@ async def delete_workspace_file(filename: str):
 
 
 @app.post("/api/workspace/files/upload", response_model=UploadResponse)
-async def upload_workspace_file(file: UploadFile = File(...)):
+async def upload_workspace_file(file: UploadFile = File(...), workspace_id: str = "default"):
     """Upload a file to the workspace."""
     try:
-        workspace_path = Path("workspace")
+        # Use workspace-specific directory
+        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
         workspace_path.mkdir(exist_ok=True)
         
         # Validate file
