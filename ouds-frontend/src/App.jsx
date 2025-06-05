@@ -8,6 +8,7 @@ import { useTaskProgressWebSocket } from '@/lib/taskProgress.js'
 import TaskProgress from '@/components/TaskProgress.jsx'
 import FileManager from '@/components/FileManager.jsx'
 import CommandQueue from '@/components/CommandQueue.jsx'
+import ReactMarkdown from 'react-markdown'
 import './App.css'
 
 function App() {
@@ -593,7 +594,39 @@ function App() {
                             ? 'text-red-600 dark:text-red-400' 
                             : 'text-gray-700 dark:text-gray-300'
                         }`}>
-                          <p className="whitespace-pre-wrap">{message.content}</p>
+                          <ReactMarkdown 
+                            className="markdown-content"
+                            components={{
+                              p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                              h1: ({children}) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
+                              h2: ({children}) => <h2 className="text-lg font-semibold mb-2">{children}</h2>,
+                              h3: ({children}) => <h3 className="text-base font-medium mb-1">{children}</h3>,
+                              code: ({children, className}) => {
+                                const isInline = !className;
+                                return isInline ? (
+                                  <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">
+                                    {children}
+                                  </code>
+                                ) : (
+                                  <pre className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg overflow-x-auto">
+                                    <code className="text-sm font-mono">{children}</code>
+                                  </pre>
+                                );
+                              },
+                              ul: ({children}) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                              ol: ({children}) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                              li: ({children}) => <li className="ml-2">{children}</li>,
+                              blockquote: ({children}) => (
+                                <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic mb-2">
+                                  {children}
+                                </blockquote>
+                              ),
+                              strong: ({children}) => <strong className="font-semibold">{children}</strong>,
+                              em: ({children}) => <em className="italic">{children}</em>
+                            }}
+                          >
+                            {message.content}
+                          </ReactMarkdown>
                         </div>
                       </div>
                     </div>
@@ -621,10 +654,40 @@ function App() {
                         </span>
                       </div>
                       <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
-                        <p className="whitespace-pre-wrap">
+                        <ReactMarkdown 
+                          className="markdown-content"
+                          components={{
+                            p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                            h1: ({children}) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
+                            h2: ({children}) => <h2 className="text-lg font-semibold mb-2">{children}</h2>,
+                            h3: ({children}) => <h3 className="text-base font-medium mb-1">{children}</h3>,
+                            code: ({children, className}) => {
+                              const isInline = !className;
+                              return isInline ? (
+                                <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">
+                                  {children}
+                                </code>
+                              ) : (
+                                <pre className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg overflow-x-auto">
+                                  <code className="text-sm font-mono">{children}</code>
+                                </pre>
+                              );
+                            },
+                            ul: ({children}) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                            ol: ({children}) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                            li: ({children}) => <li className="ml-2">{children}</li>,
+                            blockquote: ({children}) => (
+                              <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic mb-2">
+                                {children}
+                              </blockquote>
+                            ),
+                            strong: ({children}) => <strong className="font-semibold">{children}</strong>,
+                            em: ({children}) => <em className="italic">{children}</em>
+                          }}
+                        >
                           {streamingMessage}
-                          <span className="animate-pulse">|</span>
-                        </p>
+                        </ReactMarkdown>
+                        <span className="animate-pulse">|</span>
                       </div>
                     </div>
                   </div>
@@ -852,7 +915,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v1.6.0</span>
+              <span>v1.7.0</span>
               {workspaceId && workspaceId !== 'default' && (
                 <>
                   <span>•</span>
