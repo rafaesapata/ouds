@@ -16,11 +16,14 @@ const API_CONFIG = {
   }
 }
 
-// Endpoints da API (todos via /api)
+// Endpoints da API (com /api/api/ para compensar o rewrite)
 export const API_ENDPOINTS = {
-  CHAT: '/api/chat',
-  ROOT: '/api/',
-  SESSIONS: '/api/sessions'
+  CHAT: '/api/api/chat',                    // /api/api/chat → (rewrite) → /api/chat
+  ROOT: '/api/',                            // /api/ → (rewrite) → /
+  SESSIONS: '/api/api/sessions',            // /api/api/sessions → (rewrite) → /api/sessions
+  DELETE_SESSION: '/api/api/sessions',      // /api/api/sessions/{id} → (rewrite) → /api/sessions/{id}
+  SESSION_HISTORY: '/api/api/sessions',     // /api/api/sessions/{id}/history → (rewrite) → /api/sessions/{id}/history
+  WEBSOCKET: '/api/ws'                      // /api/ws/{id} → (rewrite) → /ws/{id}
 }
 
 // Função para construir URL completa da API
@@ -28,6 +31,17 @@ export function buildApiUrl(endpoint) {
   // Se o endpoint já começa com /api, usa direto
   if (endpoint.startsWith('/api')) {
     return `http://o.udstec.io${endpoint}`;
+  }
+  
+  // Para endpoints que precisam de /api/api/ (compensar rewrite)
+  const needsDoubleApi = ['chat', 'sessions'];
+  if (needsDoubleApi.includes(endpoint)) {
+    return `http://o.udstec.io/api/api/${endpoint}`;
+  }
+  
+  // Para WebSocket (não tem /api prefix no backend)
+  if (endpoint === 'ws' || endpoint.startsWith('ws/')) {
+    return `http://o.udstec.io/api/${endpoint}`;
   }
   
   // Senão, adiciona /api
