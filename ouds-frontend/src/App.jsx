@@ -3,9 +3,8 @@ import { Button } from '@/components/ui/button.jsx'
 import { Input } from '@/components/ui/input.jsx'
 import { ScrollArea } from '@/components/ui/scroll-area.jsx'
 import { Send, User, Bot, Loader2, Settings, RotateCcw } from 'lucide-react'
+import { apiRequest, checkBackendHealth, API_ENDPOINTS, buildApiUrl } from '@/lib/api.js'
 import './App.css'
-
-const API_BASE_URL = __OUDS_API_URL__ || 'http://localhost:8000'
 
 function App() {
   const [messages, setMessages] = useState([])
@@ -24,17 +23,33 @@ function App() {
   }, [messages])
 
   useEffect(() => {
-    // Test API connection
-    fetch(`${API_BASE_URL}/`)
-      .then(response => response.json())
-      .then(data => {
-        setIsConnected(true)
-        console.log('Connected to OUDS API:', data)
-      })
-      .catch(error => {
-        console.error('Failed to connect to OUDS API:', error)
-        setIsConnected(false)
-      })
+    // Test API connection using the new API system
+    const testConnection = async () => {
+      console.log('🔍 Testing backend connection...');
+      const healthCheck = await checkBackendHealth();
+      
+      if (healthCheck.status === 'ok') {
+        setIsConnected(true);
+        console.log('✅ Connected to OUDS API:', healthCheck.data);
+      } else {
+        console.error('❌ Failed to connect to OUDS API:', healthCheck.error);
+        setIsConnected(false);
+        
+        // Try alternative connection test
+        try {
+          const response = await fetch(buildApiUrl('/'));
+          if (response.ok) {
+            const data = await response.json();
+            setIsConnected(true);
+            console.log('✅ Connected to OUDS API (alternative):', data);
+          }
+        } catch (error) {
+          console.error('❌ Alternative connection also failed:', error);
+        }
+      }
+    };
+    
+    testConnection();
   }, [])
 
   const sendMessage = async () => {
@@ -52,22 +67,14 @@ function App() {
     setIsLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+      // Use the new API system
+      const data = await apiRequest(API_ENDPOINTS.CHAT, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           message: inputMessage,
           session_id: sessionId
         })
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
+      });
       
       if (!sessionId) {
         setSessionId(data.session_id)
@@ -82,11 +89,11 @@ function App() {
 
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
-      console.error('Error sending message:', error)
+      console.error('❌ Error sending message:', error)
       const errorMessage = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: 'Desculpe, ocorreu um erro ao processar sua mensagem. Verifique se o servidor OUDS está rodando.',
+        content: `Desculpe, ocorreu um erro ao processar sua mensagem: ${error.message}. Verifique a configuração do backend no arquivo .env.`,
         timestamp: new Date().toISOString(),
         isError: true
       }
@@ -261,7 +268,7 @@ function App() {
           
           {!isConnected && (
             <div className="mt-2 text-sm text-red-500 dark:text-red-400">
-              ⚠️ Não foi possível conectar ao servidor. Verifique se está rodando em localhost:8000
+              ⚠️ Não foi possível conectar ao servidor. Verifique a configuração do backend no arquivo .env
             </div>
           )}
           
