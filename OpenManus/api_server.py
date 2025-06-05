@@ -349,7 +349,7 @@ class SessionManager:
         
         return CommandQueueResponse(
             queue=queue,
-            processing=processing,
+            current_processing=processing,
             total_pending=len(queue)
         )
     
@@ -541,8 +541,10 @@ async def process_next_command_in_queue(session_id: str, workspace_id: str = "de
 @app.get("/api/sessions/{session_id}/queue", response_model=CommandQueueResponse)
 async def get_command_queue(session_id: str):
     """Get the command queue status for a session."""
-    await session_manager.get_or_create_session(session_id)
-    return session_manager.get_command_queue_status(session_id)
+    # Get workspace_id from request headers or default
+    workspace_id = "default"  # TODO: Extract from request context
+    await session_manager.get_or_create_session(session_id, workspace_id)
+    return session_manager.get_command_queue_status(session_id, workspace_id)
 
 
 @app.delete("/api/sessions/{session_id}/queue/{command_id}")

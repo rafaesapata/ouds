@@ -415,6 +415,58 @@ function App() {
     }
   }
 
+  const handlePaste = async (e) => {
+    const pastedText = e.clipboardData.getData('text');
+    const currentText = inputMessage;
+    const newText = currentText + pastedText;
+    
+    if (newText.length > 2000) {
+      e.preventDefault();
+      
+      // Create a text file with the pasted content
+      const blob = new Blob([pastedText], { type: 'text/plain' });
+      const file = new File([blob], `texto_colado_${Date.now()}.txt`, { type: 'text/plain' });
+      
+      try {
+        setIsUploadingFile(true);
+        
+        // Upload file to workspace
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/service/api/workspace/files/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Upload failed: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        
+        setAttachedFile({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          content: pastedText,
+          uploadPath: result.saved_path,
+          isRead: true
+        });
+
+        // Set a brief message indicating the file was created
+        setInputMessage('Texto longo convertido em arquivo anexado');
+        
+        console.log('📎 Long text converted to file:', file.name);
+      } catch (error) {
+        console.error('❌ Error creating file from paste:', error);
+        alert(`Erro ao criar arquivo: ${error.message}`);
+      } finally {
+        setIsUploadingFile(false);
+      }
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault()
     sendMessageWithStreaming()
@@ -422,8 +474,8 @@ function App() {
 
   return (
     <div className="h-screen bg-white dark:bg-gray-900 flex flex-col">
-      {/* Header */}
-      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      {/* Header - Fixed/Sticky */}
+      <div className="sticky top-0 z-50 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -746,6 +798,7 @@ function App() {
                     setInputMessage(value);
                   }
                 }}
+                onPaste={handlePaste}
                 onKeyPress={handleKeyPress}
                 placeholder="Digite sua mensagem..."
                 disabled={isLoading || !isConnected}
@@ -799,7 +852,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v1.5.0</span>
+              <span>v1.6.0</span>
               {workspaceId && workspaceId !== 'default' && (
                 <>
                   <span>•</span>
