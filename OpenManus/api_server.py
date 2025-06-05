@@ -18,7 +18,6 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
@@ -50,9 +49,6 @@ app.add_middleware(
 
 # Create session manager
 session_manager = SessionManager()
-
-# Create templates
-templates = Jinja2Templates(directory="templates")
 
 
 # Models
