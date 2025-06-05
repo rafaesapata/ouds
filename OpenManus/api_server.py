@@ -575,8 +575,16 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
             
             await session_manager.update_task_progress(session_id, initial_tasks)
             
-            # Send initial progress
-            yield f"data: {json.dumps({'type': 'progress', 'tasks': [t.dict() for t in initial_tasks]})}\n\n"
+            # Send initial progress with proper datetime serialization
+            tasks_dict = []
+            for task in initial_tasks:
+                task_dict = task.dict()
+                if task_dict.get('started_at'):
+                    task_dict['started_at'] = task_dict['started_at'].isoformat()
+                if task_dict.get('completed_at'):
+                    task_dict['completed_at'] = task_dict['completed_at'].isoformat()
+                tasks_dict.append(task_dict)
+            yield f"data: {json.dumps({'type': 'progress', 'tasks': tasks_dict})}\n\n"
             
             # Add user message to agent memory
             user_message = Message(role=Role.USER, content=request.message)
@@ -589,7 +597,16 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
             initial_tasks[1].started_at = datetime.now()
             
             await session_manager.update_task_progress(session_id, initial_tasks)
-            yield f"data: {json.dumps({'type': 'progress', 'tasks': [t.dict() for t in initial_tasks]})}\n\n"
+            # Convert tasks to dict with proper datetime serialization
+            tasks_dict = []
+            for task in initial_tasks:
+                task_dict = task.dict()
+                if task_dict.get('started_at'):
+                    task_dict['started_at'] = task_dict['started_at'].isoformat()
+                if task_dict.get('completed_at'):
+                    task_dict['completed_at'] = task_dict['completed_at'].isoformat()
+                tasks_dict.append(task_dict)
+            yield f"data: {json.dumps({'type': 'progress', 'tasks': tasks_dict})}\n\n"
             
             # Run the agent
             await agent.run(request.message)
@@ -601,7 +618,16 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
             initial_tasks[2].started_at = datetime.now()
             
             await session_manager.update_task_progress(session_id, initial_tasks)
-            yield f"data: {json.dumps({'type': 'progress', 'tasks': [t.dict() for t in initial_tasks]})}\n\n"
+            # Convert tasks to dict with proper datetime serialization
+            tasks_dict = []
+            for task in initial_tasks:
+                task_dict = task.dict()
+                if task_dict.get('started_at'):
+                    task_dict['started_at'] = task_dict['started_at'].isoformat()
+                if task_dict.get('completed_at'):
+                    task_dict['completed_at'] = task_dict['completed_at'].isoformat()
+                tasks_dict.append(task_dict)
+            yield f"data: {json.dumps({'type': 'progress', 'tasks': tasks_dict})}\n\n"
             
             # Get the response
             assistant_messages = [
@@ -621,7 +647,16 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
             initial_tasks[3].started_at = datetime.now()
             
             await session_manager.update_task_progress(session_id, initial_tasks)
-            yield f"data: {json.dumps({'type': 'progress', 'tasks': [t.dict() for t in initial_tasks]})}\n\n"
+            # Convert tasks to dict with proper datetime serialization
+            tasks_dict = []
+            for task in initial_tasks:
+                task_dict = task.dict()
+                if task_dict.get('started_at'):
+                    task_dict['started_at'] = task_dict['started_at'].isoformat()
+                if task_dict.get('completed_at'):
+                    task_dict['completed_at'] = task_dict['completed_at'].isoformat()
+                tasks_dict.append(task_dict)
+            yield f"data: {json.dumps({'type': 'progress', 'tasks': tasks_dict})}\n\n"
             
             # Stream the response word by word
             words = response_content.split()
@@ -640,7 +675,16 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
             initial_tasks[3].completed_at = datetime.now()
             
             await session_manager.update_task_progress(session_id, initial_tasks)
-            yield f"data: {json.dumps({'type': 'progress', 'tasks': [t.dict() for t in initial_tasks]})}\n\n"
+            # Convert tasks to dict with proper datetime serialization
+            tasks_dict = []
+            for task in initial_tasks:
+                task_dict = task.dict()
+                if task_dict.get('started_at'):
+                    task_dict['started_at'] = task_dict['started_at'].isoformat()
+                if task_dict.get('completed_at'):
+                    task_dict['completed_at'] = task_dict['completed_at'].isoformat()
+                tasks_dict.append(task_dict)
+            yield f"data: {json.dumps({'type': 'progress', 'tasks': tasks_dict})}\n\n"
             
             # Send completion signal
             yield f"data: {json.dumps({'type': 'complete', 'session_id': session_id})}\n\n"
