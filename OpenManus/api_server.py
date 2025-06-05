@@ -42,6 +42,11 @@ class ChatResponse(BaseModel):
     session_id: str
     timestamp: datetime
     status: str = "success"
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 
 class TaskStatus(BaseModel):
@@ -51,6 +56,11 @@ class TaskStatus(BaseModel):
     description: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 
 class TaskProgressUpdate(BaseModel):
@@ -67,6 +77,11 @@ class FileInfo(BaseModel):
     modified: datetime
     type: str
     path: str
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 
 class FileListResponse(BaseModel):
@@ -89,6 +104,11 @@ class CommandQueueItem(BaseModel):
     created_at: datetime
     status: str  # "pending", "processing", "completed", "failed"
     session_id: str
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 
 class CommandQueueResponse(BaseModel):
@@ -131,6 +151,11 @@ class SessionInfo(BaseModel):
     created_at: datetime
     last_activity: datetime
     message_count: int
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 
 # Global session management

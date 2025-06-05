@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Input } from '@/components/ui/input.jsx'
 import { ScrollArea } from '@/components/ui/scroll-area.jsx'
@@ -295,6 +295,15 @@ function App() {
       setIsLoading(false)
       setAbortController(null)
     }
+  };
+
+  const clearChat = () => {
+    setMessages([]);
+    setSessionId(null);
+    setStreamingMessage('');
+    setIsStreaming(false);
+    resetTasks();
+    console.log('🔄 Chat cleared, starting new conversation');
   };
 
   const handleKeyPress = (e) => {
