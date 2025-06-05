@@ -1,6 +1,6 @@
 {
   "name": "ouds",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "OUDS - Oráculo UDS - Sistema de IA conversacional",
   "main": "OpenManus/api_server.py",
   "scripts": {

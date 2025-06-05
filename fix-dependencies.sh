@@ -175,35 +175,96 @@ EOF
 
 echo "✅ Arquivos de requirements criados!"
 
-# Função para instalar pacote com múltiplas estratégias
+# Função para instalar uv se não estiver disponível
+install_uv() {
+    if command -v uv >/dev/null 2>&1; then
+        echo "✅ uv já está instalado"
+        uv --version
+        return 0
+    fi
+    
+    echo "📦 Instalando uv (gerenciador de pacotes Python ultra-rápido)..."
+    
+    # Método 1: Via curl (recomendado)
+    if curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1; then
+        export PATH="$HOME/.cargo/bin:$PATH"
+        if command -v uv >/dev/null 2>&1; then
+            echo "✅ uv instalado com sucesso via curl"
+            uv --version
+            return 0
+        fi
+    fi
+    
+    # Método 2: Via pip
+    if pip3 install uv >/dev/null 2>&1; then
+        echo "✅ uv instalado com sucesso via pip"
+        uv --version
+        return 0
+    fi
+    
+    # Método 3: Via pip --user
+    if pip3 install --user uv >/dev/null 2>&1; then
+        echo "✅ uv instalado com sucesso via pip --user"
+        export PATH="$HOME/.local/bin:$PATH"
+        uv --version
+        return 0
+    fi
+    
+    echo "⚠️ Não foi possível instalar uv, usando pip como fallback"
+    return 1
+}
+
+# Função para instalar pacote com múltiplas estratégias (incluindo uv)
 install_package() {
     local package=$1
     local name=$(echo $package | cut -d'>' -f1 | cut -d'=' -f1)
     
     echo "📦 Instalando $name..."
     
-    # Estratégia 1: Instalação normal
+    # Estratégia 1: uv (mais rápido)
+    if command -v uv >/dev/null 2>&1; then
+        if uv pip install "$package" >/dev/null 2>&1; then
+            echo "✅ $name instalado com sucesso (uv)"
+            return 0
+        fi
+        
+        # uv com --user
+        if uv pip install --user "$package" >/dev/null 2>&1; then
+            echo "✅ $name instalado com sucesso (uv --user)"
+            return 0
+        fi
+    fi
+    
+    # Estratégia 2: Instalação normal com pip
     if pip3 install "$package" >/dev/null 2>&1; then
-        echo "✅ $name instalado com sucesso (método normal)"
+        echo "✅ $name instalado com sucesso (pip normal)"
         return 0
     fi
     
-    # Estratégia 2: Instalação do usuário
+    # Estratégia 3: Instalação do usuário
     if pip3 install --user "$package" >/dev/null 2>&1; then
-        echo "✅ $name instalado com sucesso (--user)"
+        echo "✅ $name instalado com sucesso (pip --user)"
         return 0
     fi
     
-    # Estratégia 3: Force reinstall
+    # Estratégia 4: Force reinstall
     if pip3 install --user --force-reinstall "$package" >/dev/null 2>&1; then
-        echo "✅ $name instalado com sucesso (--force-reinstall)"
+        echo "✅ $name instalado com sucesso (pip --force-reinstall)"
         return 0
     fi
     
-    # Estratégia 4: No deps
+    # Estratégia 5: No deps
     if pip3 install --user --no-deps "$package" >/dev/null 2>&1; then
-        echo "✅ $name instalado com sucesso (--no-deps)"
+        echo "✅ $name instalado com sucesso (pip --no-deps)"
         return 0
+    fi
+    
+    # Estratégia 6: uv com --break-system-packages (se disponível)
+    if command -v uv >/dev/null 2>&1; then
+        if uv pip install --break-system-packages "$package" >/dev/null 2>&1; then
+            echo "✅ $name instalado com sucesso (uv --break-system-packages)"
+            return 0
+        fi
     fi
     
     echo "❌ Falha ao instalar $name"
@@ -226,6 +287,11 @@ critical_packages=(
     "pyyaml>=6.0.0"
     "tomli>=2.0.0"
 )
+
+echo ""
+echo "🚀 Instalando uv (gerenciador ultra-rápido)..."
+echo "============================================="
+install_uv
 
 echo ""
 echo "🚀 Instalando dependências críticas..."
@@ -289,7 +355,10 @@ echo "2. Teste o backend:"
 echo "   cd .."
 echo "   ./start_backend.sh"
 echo ""
-echo "3. Se houver problemas, execute:"
+echo "3. Para instalações futuras, use uv (mais rápido):"
+echo "   uv pip install <pacote>"
+echo ""
+echo "4. Se houver problemas, execute:"
 echo "   ./diagnose.sh"
 echo ""
 
