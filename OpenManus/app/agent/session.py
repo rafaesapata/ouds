@@ -84,7 +84,14 @@ class SessionManager:
             }
             
             # Criar agente para a sessão
-            self.agents[workspace_id][session_id] = ToolCallAgent(name=f"agent_{session_id}")
+            agent = ToolCallAgent(name=f"agent_{session_id}")
+            
+            # Inicializar memória do agente
+            from app.agent.memory import Memory
+            agent.memory = Memory()
+            
+            # Armazenar agente
+            self.agents[workspace_id][session_id] = agent
             
             # Inicializar fila de comandos
             self.command_queues[workspace_id][session_id] = []

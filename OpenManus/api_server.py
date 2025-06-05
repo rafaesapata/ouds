@@ -155,6 +155,14 @@ async def chat_stream_endpoint(request: Request):
         # Get or create session
         session_id = await session_manager.get_or_create_session(session_id, workspace_id)
         
+        # Verify agent has memory
+        if workspace_id in session_manager.agents and session_id in session_manager.agents[workspace_id]:
+            agent = session_manager.agents[workspace_id][session_id]
+            if not hasattr(agent, 'memory') or agent.memory is None:
+                from app.agent.memory import Memory
+                agent.memory = Memory()
+                logger.info(f"Initialized memory for agent in session {session_id}, workspace {workspace_id}")
+        
         # Create streaming response
         return StreamingResponse(
             process_chat_stream(session_id, message, workspace_id),
