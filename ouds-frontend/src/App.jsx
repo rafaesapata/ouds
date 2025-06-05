@@ -523,33 +523,33 @@ function App() {
             </Button>
           </div>
         </div>
-      </div>
-
-      {/* Tabs Navigation */}
-      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="flex space-x-1 px-4">
-          <button
-            onClick={() => setActiveTab('chat')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'chat'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            <MessageSquare className="h-4 w-4 mr-2 inline" />
-            Chat
-          </button>
-          <button
-            onClick={() => setActiveTab('knowledge')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'knowledge'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            <Brain className="h-4 w-4 mr-2 inline" />
-            Base de Conhecimento
-          </button>
+        
+        {/* Tabs Navigation - Now inside sticky header */}
+        <div className="border-t border-gray-200 dark:border-gray-700">
+          <div className="flex space-x-1 px-4">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'chat'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              <MessageSquare className="h-4 w-4 mr-2 inline" />
+              Chat
+            </button>
+            <button
+              onClick={() => setActiveTab('knowledge')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'knowledge'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              <Brain className="h-4 w-4 mr-2 inline" />
+              Base de Conhecimento
+            </button>
+          </div>
         </div>
       </div>
 

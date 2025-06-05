@@ -364,9 +364,9 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {files.map((file) => (
+                  {files.map((file, index) => (
                     <div
-                      key={file.name}
+                      key={`${file.path || file.name}-${index}`}
                       className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
                         selectedFile === file.name
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'

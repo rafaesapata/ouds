@@ -387,6 +387,44 @@ const KnowledgeManager = ({ workspaceId = 'default' }) => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Buscar Conhecimento */}
+                  <div className="text-sm font-bold">
+                    {knowledgeStats.last_updated ? 
+                      new Date(knowledgeStats.last_updated).toLocaleDateString() : 
+                      'N/A'
+                    }
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Última atualização
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Distribuição por Tipo */}
+          {knowledgeStats?.knowledge_by_type && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Distribuição por Tipo</CardTitle>
+                <CardDescription>
+                  Tipos de conhecimento armazenado no workspace
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(knowledgeStats.knowledge_by_type).map(([type, count]) => (
+                    <Badge key={type} className={getTypeColor(type)}>
+                      {type}: {count}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
         {/* Buscar Conhecimento */}
         <TabsContent value="search" className="space-y-6">
           <Card>
