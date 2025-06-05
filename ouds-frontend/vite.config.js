@@ -31,6 +31,27 @@ export default defineConfig(({ mode }) => {
         port: parseInt(env.VITE_HMR_PORT) || 80,
         host: env.VITE_HMR_HOST || 'localhost',
         clientPort: parseInt(env.VITE_HMR_PORT) || 80
+      },
+      proxy: {
+        // Proxy simples: /api → localhost:8000
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api/, ''),
+          configure: (proxy, options) => {
+            console.log('🔧 Proxy /api → http://localhost:8000');
+            proxy.on('error', (err, req, res) => {
+              console.log('❌ Proxy error:', err.message);
+            });
+            proxy.on('proxyReq', (proxyReq, req, res) => {
+              console.log('🔄 Proxying:', req.method, req.url, '→', 'http://localhost:8000' + req.url.replace('/api', ''));
+            });
+            proxy.on('proxyRes', (proxyRes, req, res) => {
+              console.log('✅ Proxy response:', proxyRes.statusCode, req.url);
+            });
+          }
+        }
       }
     },
     preview: {
@@ -42,8 +63,7 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       // Disponibilizar variáveis de ambiente para o frontend
-      __OUDS_API_URL__: JSON.stringify(env.VITE_API_URL || 'http://localhost:8000'),
-      __OUDS_VERSION__: JSON.stringify(env.OUDS_VERSION || '1.0.24'),
+      __OUDS_VERSION__: JSON.stringify(env.OUDS_VERSION || '1.0.25'),
       __VITE_ALLOWED_HOSTS__: JSON.stringify(allowedHosts),
     }
   }

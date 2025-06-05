@@ -1,10 +1,10 @@
 // OUDS - Configuração da API
 // ===========================
 
-// Configuração da URL base da API a partir das variáveis de ambiente
+// URL fixa da API (via proxy do frontend)
 const API_CONFIG = {
-  // URL base da API (definida no build time pelo Vite)
-  BASE_URL: typeof __OUDS_API_URL__ !== 'undefined' ? __OUDS_API_URL__ : 'http://localhost:8000',
+  // URL base da API (sempre via proxy /api)
+  BASE_URL: 'http://o.udstec.io/api',
   
   // Timeout padrão para requisições
   TIMEOUT: 30000,
@@ -16,19 +16,23 @@ const API_CONFIG = {
   }
 }
 
-// Endpoints da API
+// Endpoints da API (todos via /api)
 export const API_ENDPOINTS = {
   CHAT: '/api/chat',
-  HEALTH: '/health',
-  DOCS: '/docs',
-  OPENAPI: '/openapi.json'
+  HEALTH: '/api/health',
+  ROOT: '/api/'
 }
 
 // Função para construir URL completa da API
 export function buildApiUrl(endpoint) {
-  const baseUrl = API_CONFIG.BASE_URL.replace(/\/$/, ''); // Remove trailing slash
+  // Se o endpoint já começa com /api, usa direto
+  if (endpoint.startsWith('/api')) {
+    return `http://o.udstec.io${endpoint}`;
+  }
+  
+  // Senão, adiciona /api
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `${baseUrl}${cleanEndpoint}`;
+  return `http://o.udstec.io/api${cleanEndpoint}`;
 }
 
 // Função para fazer requisições à API
@@ -64,7 +68,7 @@ export async function apiRequest(endpoint, options = {}) {
 // Função para verificar saúde do backend
 export async function checkBackendHealth() {
   try {
-    const data = await apiRequest(API_ENDPOINTS.HEALTH);
+    const data = await apiRequest('/api/health');
     return { status: 'ok', data };
   } catch (error) {
     return { status: 'error', error: error.message };
