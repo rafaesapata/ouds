@@ -62,7 +62,13 @@ class Manus(ToolCallAgent):
         # Ensure workspace directory exists
         workspace_path = config.workspace_root
         workspace_path.mkdir(parents=True, exist_ok=True)
+        
+        # Create files directory for storing uploaded files
+        files_path = workspace_path / "files"
+        files_path.mkdir(exist_ok=True)
+        
         logger.info(f"Workspace directory ensured at: {workspace_path}")
+        logger.info(f"Files directory ensured at: {files_path}")
         
         instance = cls(**kwargs)
         await instance.initialize_mcp_servers()

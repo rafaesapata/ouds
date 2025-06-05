@@ -936,13 +936,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 def get_workspace_path(workspace_id: str = "default"):
     """Get the workspace path for a specific workspace ID"""
     from app.config import config
-    if workspace_id == "default":
-        return config.workspace_root
-    else:
-        # Create workspace-specific directory
-        workspace_path = config.workspace_root.parent / f"workspace_{workspace_id}"
-        workspace_path.mkdir(exist_ok=True)
-        return workspace_path
+    
+    # Create workspace-specific directory for all workspaces
+    workspace_path = config.workspace_root.parent / f"workspace_{workspace_id}"
+    workspace_path.mkdir(exist_ok=True)
+    
+    # Create subdirectories for organization
+    files_path = workspace_path / "files"
+    files_path.mkdir(exist_ok=True)
+    
+    return workspace_path
 
 @app.get("/api/workspace/files", response_model=FileListResponse)
 async def list_workspace_files(session_id: Optional[str] = None):
@@ -959,10 +962,11 @@ async def list_workspace_files(session_id: Optional[str] = None):
         
         # Use workspace-specific directory
         workspace_path = get_workspace_path(workspace_id)
-        workspace_path.mkdir(exist_ok=True)
+        files_path = workspace_path / "files"
+        files_path.mkdir(exist_ok=True)
         
         files = []
-        for file_path in workspace_path.rglob("*"):
+        for file_path in files_path.rglob("*"):
             if file_path.is_file():
                 # Skip hidden files and system files
                 if file_path.name.startswith('.'):
@@ -974,7 +978,7 @@ async def list_workspace_files(session_id: Optional[str] = None):
                     size=stat.st_size,
                     modified=datetime.fromtimestamp(stat.st_mtime),
                     type=mimetypes.guess_type(str(file_path))[0] or "application/octet-stream",
-                    path=str(file_path.relative_to(workspace_path))
+                    path=str(file_path.relative_to(files_path))
                 ))
         
         # Sort by modification time (newest first)
@@ -983,7 +987,7 @@ async def list_workspace_files(session_id: Optional[str] = None):
         return FileListResponse(
             files=files,
             total_count=len(files),
-            workspace_path=str(workspace_path.absolute())
+            workspace_path=str(files_path.absolute())
         )
     
     except Exception as e:
@@ -1006,10 +1010,11 @@ async def download_workspace_file(filename: str, session_id: Optional[str] = Non
                     
         # Use workspace-specific directory
         workspace_path = get_workspace_path(workspace_id)
-        file_path = workspace_path / filename
+        files_path = workspace_path / "files"
+        file_path = files_path / filename
         
         # Security check: ensure file is within workspace
-        if not str(file_path.resolve()).startswith(str(workspace_path.resolve())):
+        if not str(file_path.resolve()).startswith(str(files_path.resolve())):
             raise HTTPException(status_code=403, detail="Access denied: file outside workspace")
         
         if not file_path.exists():
@@ -1049,10 +1054,11 @@ async def preview_workspace_file(filename: str, session_id: Optional[str] = None
                     
         # Use workspace-specific directory
         workspace_path = get_workspace_path(workspace_id)
-        file_path = workspace_path / filename
+        files_path = workspace_path / "files"
+        file_path = files_path / filename
         
         # Security check: ensure file is within workspace
-        if not str(file_path.resolve()).startswith(str(workspace_path.resolve())):
+        if not str(file_path.resolve()).startswith(str(files_path.resolve())):
             raise HTTPException(status_code=403, detail="Access denied")
         
         if not file_path.exists():
@@ -1101,10 +1107,11 @@ async def delete_workspace_file(filename: str, session_id: Optional[str] = None)
                     
         # Use workspace-specific directory
         workspace_path = get_workspace_path(workspace_id)
-        file_path = workspace_path / filename
+        files_path = workspace_path / "files"
+        file_path = files_path / filename
         
         # Security check: ensure file is within workspace
-        if not str(file_path.resolve()).startswith(str(workspace_path.resolve())):
+        if not str(file_path.resolve()).startswith(str(files_path.resolve())):
             raise HTTPException(status_code=403, detail="Access denied")
         
         if not file_path.exists():
@@ -1139,7 +1146,8 @@ async def upload_workspace_file(file: UploadFile = File(...), session_id: Option
                     
         # Use workspace-specific directory
         workspace_path = get_workspace_path(workspace_id)
-        workspace_path.mkdir(exist_ok=True)
+        files_path = workspace_path / "files"
+        files_path.mkdir(exist_ok=True)
         
         # Validate file
         if not file.filename:
@@ -1157,7 +1165,7 @@ async def upload_workspace_file(file: UploadFile = File(...), session_id: Option
             raise HTTPException(status_code=400, detail="File too large (max 10MB)")
         
         # Check if file already exists and create unique name if needed
-        file_path = workspace_path / safe_filename
+        file_path = files_path / safe_filename
         counter = 1
         original_name = safe_filename
         while file_path.exists():
@@ -1166,19 +1174,19 @@ async def upload_workspace_file(file: UploadFile = File(...), session_id: Option
                 safe_filename = f"{name_parts[0]}_{counter}.{name_parts[1]}"
             else:
                 safe_filename = f"{original_name}_{counter}"
-            file_path = workspace_path / safe_filename
+            file_path = files_path / safe_filename
             counter += 1
         
         # Write file
         file_path.write_bytes(content)
         
-        logger.info(f"File uploaded successfully: {safe_filename} ({len(content)} bytes) to {workspace_path}")
+        logger.info(f"File uploaded successfully: {safe_filename} ({len(content)} bytes) to {files_path}")
         
         return UploadResponse(
             message="File uploaded successfully",
             filename=safe_filename,
             size=len(content),
-            saved_path=str(file_path.relative_to(workspace_path))
+            saved_path=str(file_path.relative_to(files_path))
         )
     
     except HTTPException:
