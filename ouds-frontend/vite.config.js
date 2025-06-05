@@ -8,6 +8,11 @@ export default defineConfig(({ mode }) => {
   // Carregar variáveis de ambiente
   const env = loadEnv(mode, process.cwd(), '')
   
+  // Processar hosts permitidos do .env
+  const allowedHosts = env.VITE_ALLOWED_HOSTS 
+    ? env.VITE_ALLOWED_HOSTS.split(',').map(host => host.trim())
+    : ['localhost', '127.0.0.1'];
+  
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
@@ -21,6 +26,7 @@ export default defineConfig(({ mode }) => {
       port: parseInt(env.OUDS_FRONTEND_PORT) || 5173,
       open: false, // CRÍTICO: Nunca abrir browser automaticamente (evita erro xdg-open ENOENT)
       strictPort: true, // Falha se a porta estiver ocupada
+      allowedHosts: allowedHosts, // Hosts permitidos configurados via .env
       proxy: {
         // Proxy para API do backend
         '/api': {
@@ -62,7 +68,8 @@ export default defineConfig(({ mode }) => {
       host: env.OUDS_FRONTEND_HOST || 'localhost',
       port: parseInt(env.OUDS_FRONTEND_PORT) || 5173,
       open: false, // Também desabilitar no preview
-      strictPort: true
+      strictPort: true,
+      allowedHosts: allowedHosts // Também aplicar no preview
     },
     define: {
       // Disponibilizar variáveis de ambiente para o frontend
@@ -71,6 +78,7 @@ export default defineConfig(({ mode }) => {
       __VITE_BACKEND_HOST__: JSON.stringify(env.VITE_BACKEND_HOST || 'localhost'),
       __VITE_BACKEND_PORT__: JSON.stringify(env.VITE_BACKEND_PORT || '8000'),
       __VITE_BACKEND_PROTOCOL__: JSON.stringify(env.VITE_BACKEND_PROTOCOL || 'http'),
+      __VITE_ALLOWED_HOSTS__: JSON.stringify(allowedHosts),
     }
   }
 })
