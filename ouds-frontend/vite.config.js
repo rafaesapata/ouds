@@ -31,8 +31,8 @@ export default defineConfig(({ mode }) => {
         // Proxy para API do backend
         '/api': {
           target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: true,
-          secure: false,
+          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN === 'true' || true,
+          secure: env.VITE_PROXY_SECURE === 'true' || false,
           rewrite: (path) => path.replace(/^\/api/, ''),
           configure: (proxy, options) => {
             proxy.on('error', (err, req, res) => {
@@ -49,18 +49,18 @@ export default defineConfig(({ mode }) => {
         // Proxy direto para endpoints específicos do backend
         '/docs': {
           target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: true,
-          secure: false
+          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN === 'true' || true,
+          secure: env.VITE_PROXY_SECURE === 'true' || false
         },
         '/openapi.json': {
           target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: true,
-          secure: false
+          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN === 'true' || true,
+          secure: env.VITE_PROXY_SECURE === 'true' || false
         },
         '/health': {
           target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: true,
-          secure: false
+          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN === 'true' || true,
+          secure: env.VITE_PROXY_SECURE === 'true' || false
         }
       }
     },
