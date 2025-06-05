@@ -612,12 +612,15 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
     
     async def generate_response():
         try:
+            # Get workspace_id from request or default
+            workspace_id = getattr(request, 'workspace_id', 'default')
+            
             # Get or create session
-            session_id = await session_manager.get_or_create_session(request.session_id)
-            agent = session_manager.agents[session_id]
+            session_id = await session_manager.get_or_create_session(request.session_id, workspace_id)
+            agent = session_manager.agents[workspace_id][session_id]
             
             # Update session activity
-            session_manager.update_activity(session_id)
+            session_manager.update_activity(session_id, workspace_id)
             
             # Initialize task progress
             initial_tasks = [
@@ -648,7 +651,7 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
                 )
             ]
             
-            await session_manager.update_task_progress(session_id, initial_tasks)
+            await session_manager.update_task_progress(session_id, initial_tasks, workspace_id)
             
             # Send initial progress with proper datetime serialization
             tasks_dict = []
@@ -671,7 +674,7 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
             initial_tasks[1].status = "running"
             initial_tasks[1].started_at = datetime.now()
             
-            await session_manager.update_task_progress(session_id, initial_tasks)
+            await session_manager.update_task_progress(session_id, initial_tasks, workspace_id)
             # Convert tasks to dict with proper datetime serialization
             tasks_dict = []
             for task in initial_tasks:
@@ -692,7 +695,7 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
             initial_tasks[2].status = "running"
             initial_tasks[2].started_at = datetime.now()
             
-            await session_manager.update_task_progress(session_id, initial_tasks)
+            await session_manager.update_task_progress(session_id, initial_tasks, workspace_id)
             # Convert tasks to dict with proper datetime serialization
             tasks_dict = []
             for task in initial_tasks:
@@ -721,7 +724,7 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
             initial_tasks[3].status = "running"
             initial_tasks[3].started_at = datetime.now()
             
-            await session_manager.update_task_progress(session_id, initial_tasks)
+            await session_manager.update_task_progress(session_id, initial_tasks, workspace_id)
             # Convert tasks to dict with proper datetime serialization
             tasks_dict = []
             for task in initial_tasks:
@@ -749,7 +752,7 @@ async def chat_stream_endpoint_v2(request: ChatRequest):
             initial_tasks[3].status = "completed"
             initial_tasks[3].completed_at = datetime.now()
             
-            await session_manager.update_task_progress(session_id, initial_tasks)
+            await session_manager.update_task_progress(session_id, initial_tasks, workspace_id)
             # Convert tasks to dict with proper datetime serialization
             tasks_dict = []
             for task in initial_tasks:
