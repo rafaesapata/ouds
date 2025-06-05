@@ -15,8 +15,12 @@ export class TaskProgressWebSocket {
 
   connect() {
     try {
-      // Use WebSocket endpoint via proxy
-      const wsUrl = `ws://o.udstec.io/service/ws/${this.sessionId}`;
+      // Use WebSocket endpoint - detect if running locally or in production
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = isLocal ? 'localhost:8000' : window.location.host;
+      const wsUrl = `${protocol}//${host}/service/ws/progress/${this.sessionId}`;
+      
       console.log('🔌 Connecting to WebSocket:', wsUrl);
       
       this.ws = new WebSocket(wsUrl);

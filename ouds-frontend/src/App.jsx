@@ -474,12 +474,12 @@ function App() {
   }
 
   return (
-    <div className="h-screen bg-white dark:bg-gray-900 flex flex-col">
-      {/* Header - Fixed/Sticky */}
-      <div className="sticky top-0 z-50 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
+    <div className="h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex flex-col">
+      {/* Header - Fixed at top */}
+      <div className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm shadow-sm">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg flex items-center justify-center shadow-sm">
               <Bot className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -523,13 +523,13 @@ function App() {
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <ScrollArea className="flex-1 px-4">
+      {/* Chat Area - Scrollable middle section */}
+      <div className="flex-1 flex flex-col min-h-0 pt-20 pb-32">
+        <div className="flex-1 overflow-y-auto px-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
-              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                <Bot className="h-8 w-8 text-gray-400" />
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 rounded-full flex items-center justify-center mb-4 shadow-sm">
+                <Bot className="h-8 w-8 text-blue-600 dark:text-blue-400" />
               </div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                 Como posso ajudar você hoje?
@@ -547,7 +547,7 @@ function App() {
                   {message.role === 'user' ? (
                     // User message - aligned right with background
                     <div className="max-w-[80%] ml-16">
-                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-3 shadow-sm">
+                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg px-4 py-3 shadow-sm border border-blue-200/50 dark:border-blue-700/50">
                         <div className="flex items-center justify-end space-x-2 mb-1">
                           <span className="text-xs text-gray-500 dark:text-gray-400">
                             {new Date(message.timestamp).toLocaleTimeString('pt-BR', {
@@ -568,11 +568,13 @@ function App() {
                       </div>
                     </div>
                   ) : (
-                    // Assistant message - aligned left (original style)
+                    // Assistant message - aligned left with improved styling
                     <div className="flex items-start space-x-3 max-w-[80%]">
                       <div className="flex-shrink-0">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          message.isError ? 'bg-red-500' : 'bg-gray-600'
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
+                          message.isError 
+                            ? 'bg-gradient-to-r from-red-500 to-red-600' 
+                            : 'bg-gradient-to-r from-gray-600 to-gray-700'
                         }`}>
                           <Bot className="h-4 w-4 text-white" />
                         </div>
@@ -589,15 +591,20 @@ function App() {
                             })}
                           </span>
                         </div>
-                        <div className={`prose prose-sm max-w-none ${
+                        <div className={`bg-white dark:bg-gray-800 rounded-lg px-4 py-3 shadow-sm border border-gray-200 dark:border-gray-700 ${
                           message.isError 
-                            ? 'text-red-600 dark:text-red-400' 
-                            : 'text-gray-700 dark:text-gray-300'
+                            ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' 
+                            : ''
                         }`}>
-                          <ReactMarkdown 
-                            className="markdown-content"
-                            components={{
-                              p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                          <div className={`prose prose-sm max-w-none ${
+                            message.isError 
+                              ? 'text-red-600 dark:text-red-400' 
+                              : 'text-gray-700 dark:text-gray-300'
+                          }`}>
+                            <ReactMarkdown 
+                              className="markdown-content"
+                              components={{
+                                p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
                               h1: ({children}) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
                               h2: ({children}) => <h2 className="text-lg font-semibold mb-2">{children}</h2>,
                               h3: ({children}) => <h3 className="text-base font-medium mb-1">{children}</h3>,
@@ -720,13 +727,15 @@ function App() {
               <div ref={messagesEndRef} />
             </div>
           )}
-        </ScrollArea>
+        </div>
+      </div>
 
-        {/* Input Area */}
-        <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      {/* Input Area - Fixed at bottom */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm shadow-lg">
+        <div className="p-4">
           {/* Task Progress - Debug version */}
           {(isLoading || tasks.length > 0) && (
-            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg border border-blue-200 dark:border-blue-800 shadow-sm">
               <div className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
                 🎯 Task Progress {currentStep && totalSteps && `- Step ${currentStep}/${totalSteps}`}
               </div>
@@ -915,7 +924,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v1.7.0</span>
+              <span>v1.8.0</span>
               {workspaceId && workspaceId !== 'default' && (
                 <>
                   <span>•</span>
