@@ -72,8 +72,9 @@ fi
 echo "🔍 Verificando dependências..."
 
 # Verificar Python e pip
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python3 não encontrado!"
+if ! command -v python3.11 &> /dev/null; then
+    echo "❌ Python 3.11 não encontrado!"
+    echo "💡 Instale o Python 3.11 ou verifique se está no PATH"
     exit 1
 fi
 

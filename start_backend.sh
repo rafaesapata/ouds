@@ -26,7 +26,7 @@ fi
 
 # Verificar se as dependências estão instaladas
 echo "🔍 Verificando dependências..."
-if ! python3 -c "import fastapi, uvicorn" 2>/dev/null; then
+if ! python3.11 -c "import fastapi, uvicorn" 2>/dev/null; then
     echo "⚠️ Dependências não encontradas. Executando instalação..."
     if [ -f "../install_ouds.sh" ]; then
         cd ..
@@ -34,7 +34,7 @@ if ! python3 -c "import fastapi, uvicorn" 2>/dev/null; then
         cd OpenManus
     else
         echo "❌ Script de instalação não encontrado!"
-        echo "💡 Execute: pip3 install fastapi uvicorn openai"
+        echo "💡 Execute: pip3.11 install fastapi uvicorn openai"
         exit 1
     fi
 fi
@@ -83,5 +83,5 @@ echo "⏹️ Para parar o servidor, pressione Ctrl+C"
 echo ""
 
 # Iniciar o servidor
-python3 api_server.py
+python3.11 api_server.py
 
