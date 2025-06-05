@@ -152,26 +152,78 @@ async def chat_stream_endpoint(request: Request):
         # Log request
         logger.info(f"Streaming chat request: session={session_id}, workspace={workspace_id}, message={message[:50]}...")
         
-        # Get or create session
-        session_id = await session_manager.get_or_create_session(session_id, workspace_id)
-        
-        # Verify agent has memory
-        if workspace_id in session_manager.agents and session_id in session_manager.agents[workspace_id]:
-            agent = session_manager.agents[workspace_id][session_id]
-            if not hasattr(agent, 'memory') or agent.memory is None:
-                from app.agent.memory import Memory
-                agent.memory = Memory()
-                logger.info(f"Initialized memory for agent in session {session_id}, workspace {workspace_id}")
-        
-        # Create streaming response
+        # Create streaming response directly without using session_manager
         return StreamingResponse(
-            process_chat_stream(session_id, message, workspace_id),
+            simple_chat_stream(session_id, message, workspace_id),
             media_type="text/event-stream"
         )
         
     except Exception as e:
-        logger.error(f"Error in chat stream endpoint: {e}")
+        logger.error(f"Error in chat stream endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+async def simple_chat_stream(session_id: str, message: str, workspace_id: str = "default"):
+    """Simple implementation of chat streaming without complex dependencies."""
+    try:
+        # Start streaming
+        yield f"data: {json.dumps({'type': 'start', 'session_id': session_id})}\n\n"
+        
+        # Get context from knowledge system if available
+        context = ""
+        try:
+            from app.knowledge.chat_integration import get_context_for_chat
+            context_result = await get_context_for_chat(message, workspace_id)
+            if context_result:
+                context = f"Context from knowledge base: {context_result}"
+                logger.info(f"Applied context to message: {len(context_result)} chars")
+        except Exception as e:
+            logger.error(f"Error getting context: {e}")
+            # Continue without context
+        
+        # Create LLM instance directly
+        from app.llm import LLM
+        llm = LLM()
+        
+        # Create system message
+        system_message = {
+            "role": "system",
+            "content": "You are a helpful assistant. Respond to the user's message."
+        }
+        
+        # Create user message
+        user_message = {
+            "role": "user",
+            "content": message
+        }
+        
+        if context:
+            user_message["content"] += f"\n\nRelevant context: {context}"
+        
+        # Stream response directly from LLM
+        try:
+            # Send messages to LLM with streaming
+            async for chunk in llm.ask_tool_streaming(
+                messages=[user_message],
+                system_msgs=[system_message]
+            ):
+                if isinstance(chunk, dict) and "content" in chunk:
+                    content = chunk["content"]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': content})}\n\n"
+                elif isinstance(chunk, dict) and "tool_calls" in chunk:
+                    # Skip tool calls for now
+                    pass
+        except Exception as e:
+            logger.error(f"Error in LLM streaming: {e}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+        
+        # End streaming
+        yield f"data: {json.dumps({'type': 'end', 'session_id': session_id})}\n\n"
+        
+    except Exception as e:
+        logger.error(f"Error in simple chat stream: {e}", exc_info=True)
+        error_message = str(e)
+        yield f"data: {json.dumps({'type': 'error', 'error': error_message})}\n\n"
 
 
 async def process_chat_stream(session_id: str, message: str, workspace_id: str = "default"):
