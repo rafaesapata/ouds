@@ -19,8 +19,8 @@ const API_CONFIG = {
 // Endpoints da API (todos via /api)
 export const API_ENDPOINTS = {
   CHAT: '/api/chat',
-  HEALTH: '/api/health',
-  ROOT: '/api/'
+  ROOT: '/api/',
+  SESSIONS: '/api/sessions'
 }
 
 // Função para construir URL completa da API
@@ -65,11 +65,17 @@ export async function apiRequest(endpoint, options = {}) {
   }
 }
 
-// Função para verificar saúde do backend
+// Função para verificar saúde do backend (usa endpoint raiz)
 export async function checkBackendHealth() {
   try {
-    const data = await apiRequest('/api/health');
-    return { status: 'ok', data };
+    // Usa endpoint raiz que existe
+    const response = await fetch('http://o.udstec.io/api/');
+    if (response.ok) {
+      const data = await response.text();
+      return { status: 'ok', data };
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
   } catch (error) {
     return { status: 'error', error: error.message };
   }
