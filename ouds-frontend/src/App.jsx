@@ -488,89 +488,115 @@ function App() {
           ) : (
             <div className="py-4 space-y-6">
               {messages.map((message) => (
-                <div key={message.id} className="flex items-start space-x-3">
-                  <div className="flex-shrink-0">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      message.role === 'user' 
-                        ? 'bg-blue-600' 
-                        : message.isError 
-                        ? 'bg-red-500' 
-                        : 'bg-gray-600'
-                    }`}>
-                      {message.role === 'user' ? (
-                        <User className="h-4 w-4 text-white" />
-                      ) : (
-                        <Bot className="h-4 w-4 text-white" />
-                      )}
+                <div key={message.id} className={`flex items-start ${
+                  message.role === 'user' ? 'justify-end' : 'justify-start'
+                }`}>
+                  {message.role === 'user' ? (
+                    // User message - aligned right with background
+                    <div className="max-w-[80%] ml-16">
+                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-3 shadow-sm">
+                        <div className="flex items-center justify-end space-x-2 mb-1">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {new Date(message.timestamp).toLocaleTimeString('pt-BR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            Você
+                          </span>
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center bg-blue-600 flex-shrink-0">
+                            <User className="h-3 w-3 text-white" />
+                          </div>
+                        </div>
+                        <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
+                          <p className="whitespace-pre-wrap text-right">{message.content}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {message.role === 'user' ? 'Você' : 'Oráculo'}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(message.timestamp).toLocaleTimeString('pt-BR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
+                  ) : (
+                    // Assistant message - aligned left (original style)
+                    <div className="flex items-start space-x-3 max-w-[80%]">
+                      <div className="flex-shrink-0">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          message.isError ? 'bg-red-500' : 'bg-gray-600'
+                        }`}>
+                          <Bot className="h-4 w-4 text-white" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            Oráculo
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {new Date(message.timestamp).toLocaleTimeString('pt-BR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <div className={`prose prose-sm max-w-none ${
+                          message.isError 
+                            ? 'text-red-600 dark:text-red-400' 
+                            : 'text-gray-700 dark:text-gray-300'
+                        }`}>
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className={`prose prose-sm max-w-none ${
-                      message.isError 
-                        ? 'text-red-600 dark:text-red-400' 
-                        : 'text-gray-700 dark:text-gray-300'
-                    }`}>
-                      <p className="whitespace-pre-wrap">{message.content}</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
               ))}
               
               {/* Streaming message */}
               {isStreaming && streamingMessage && (
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
-                      <Bot className="h-4 w-4 text-white" />
+                <div className="flex items-start justify-start">
+                  <div className="flex items-start space-x-3 max-w-[80%]">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
+                        <Bot className="h-4 w-4 text-white" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        Oráculo
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
-                        <span className="animate-pulse mr-1">●</span>
-                        processando...
-                      </span>
-                    </div>
-                    <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
-                      <p className="whitespace-pre-wrap">
-                        {streamingMessage}
-                        <span className="animate-pulse">|</span>
-                      </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          Oráculo
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                          <span className="animate-pulse mr-1">●</span>
+                          processando...
+                        </span>
+                      </div>
+                      <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
+                        <p className="whitespace-pre-wrap">
+                          {streamingMessage}
+                          <span className="animate-pulse">|</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
               
               {isLoading && !isStreaming && (
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-white" />
+                <div className="flex items-start justify-start">
+                  <div className="flex items-start space-x-3 max-w-[80%]">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center">
+                        <Bot className="h-4 w-4 text-white" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        Oráculo
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Aguardando resposta...</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          Oráculo
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm">Aguardando resposta...</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -773,7 +799,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v1.4.1</span>
+              <span>v1.5.0</span>
               {workspaceId && workspaceId !== 'default' && (
                 <>
                   <span>•</span>
