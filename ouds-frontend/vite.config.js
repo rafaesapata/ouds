@@ -36,10 +36,15 @@ export default defineConfig(({ mode }) => {
         // Proxy para API do backend
         '/api': {
           target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN === 'true' || true,
-          secure: env.VITE_PROXY_SECURE === 'true' || false,
+          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN !== 'false',
+          secure: env.VITE_PROXY_SECURE === 'true',
           rewrite: (path) => path.replace(/^\/api/, ''),
           configure: (proxy, options) => {
+            console.log('🔧 Proxy /api configuration:', {
+              target: options.target,
+              changeOrigin: options.changeOrigin,
+              secure: options.secure
+            });
             proxy.on('error', (err, req, res) => {
               console.log('❌ Proxy error:', err.message);
             });
@@ -54,18 +59,18 @@ export default defineConfig(({ mode }) => {
         // Proxy direto para endpoints específicos do backend
         '/docs': {
           target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN === 'true' || true,
-          secure: env.VITE_PROXY_SECURE === 'true' || false
+          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN !== 'false',
+          secure: env.VITE_PROXY_SECURE === 'true'
         },
         '/openapi.json': {
           target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN === 'true' || true,
-          secure: env.VITE_PROXY_SECURE === 'true' || false
+          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN !== 'false',
+          secure: env.VITE_PROXY_SECURE === 'true'
         },
         '/health': {
           target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN === 'true' || true,
-          secure: env.VITE_PROXY_SECURE === 'true' || false
+          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN !== 'false',
+          secure: env.VITE_PROXY_SECURE === 'true'
         }
       }
     },
