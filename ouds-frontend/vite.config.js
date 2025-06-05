@@ -27,6 +27,11 @@ export default defineConfig(({ mode }) => {
       open: false, // CRÍTICO: Nunca abrir browser automaticamente (evita erro xdg-open ENOENT)
       strictPort: true, // Falha se a porta estiver ocupada
       allowedHosts: allowedHosts, // Hosts permitidos configurados via .env
+      hmr: {
+        port: parseInt(env.VITE_HMR_PORT) || 5173,
+        host: env.VITE_HMR_HOST || 'localhost',
+        clientPort: parseInt(env.VITE_HMR_PORT) || 5173
+      },
       proxy: {
         // Proxy para API do backend
         '/api': {
