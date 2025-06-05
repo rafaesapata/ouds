@@ -1,4 +1,3 @@
-from typing import Union, Optional
 import asyncio
 
 from app.agent.data_analysis import DataAnalysis
@@ -14,7 +13,7 @@ async def main():
         """Requirement:
 1. Analyze the following data and generate a graphical data report in HTML format. The final product should be a data report.
 Data:
-Union[Month, Team] Union[A, Team] Union[B, Team] C
+Month | Team A | Team B | Team C
 January | 1200 hours | 1350 hours | 1100 hours
 February | 1250 hours | 1400 hours | 1150 hours
 March | 1180 hours | 1300 hours | 1300 hours

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from typing import Any, Hashable, Union
+from typing import Any, Hashable
 
 import pandas as pd
 from pydantic import Field, model_validator
@@ -196,9 +196,9 @@ Outputs:
     async def execute(
         self,
         json_path: str,
-        output_type: Optional[str] = "html",
-        tool_type: Optional[str] = "visualization",
-        language: Optional[str] = "en",
+        output_type: str | None = "html",
+        tool_type: str | None = "visualization",
+        language: str | None = "en",
     ) -> str:
         try:
             logger.info(f"📈 data_visualization with {json_path} in: {tool_type} ")

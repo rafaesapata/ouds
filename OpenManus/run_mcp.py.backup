@@ -1,4 +1,3 @@
-from typing import Union, Optional
 #!/usr/bin/env python
 import argparse
 import asyncio
@@ -20,7 +19,7 @@ class MCPRunner:
     async def initialize(
         self,
         connection_type: str,
-        server_url: Optional[str] = None,
+        server_url: str | None = None,
     ) -> None:
         """Initialize the MCP agent with the appropriate connection."""
         logger.info(f"Initializing MCPAgent with {connection_type} connection...")
