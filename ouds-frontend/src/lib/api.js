@@ -65,18 +65,22 @@ export async function apiRequest(endpoint, options = {}) {
   }
 }
 
-// Função para verificar saúde do backend (usa endpoint raiz)
+// Função para verificar saúde do backend (aceita 404 como válido)
 export async function checkBackendHealth() {
   try {
-    // Usa endpoint raiz que existe
+    // Usa endpoint raiz que retorna {"detail":"Not Found"} - isso é esperado
     const response = await fetch('http://o.udstec.io/api/');
-    if (response.ok) {
+    
+    // Aceita tanto 200 quanto 404 como indicação de que o backend está funcionando
+    if (response.ok || response.status === 404) {
       const data = await response.text();
-      return { status: 'ok', data };
+      console.log('✅ Backend respondeu:', response.status, data);
+      return { status: 'ok', data, statusCode: response.status };
     } else {
       throw new Error(`HTTP ${response.status}`);
     }
   } catch (error) {
+    console.error('❌ Backend não responde:', error.message);
     return { status: 'error', error: error.message };
   }
 }
