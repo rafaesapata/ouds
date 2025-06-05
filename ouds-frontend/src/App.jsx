@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Input } from '@/components/ui/input.jsx'
 import { ScrollArea } from '@/components/ui/scroll-area.jsx'
 import { Send, User, Bot, Loader2, Settings, RotateCcw } from 'lucide-react'
 import { apiRequest, checkBackendHealth, API_ENDPOINTS, buildApiUrl } from '@/lib/api.js'
+import { useTaskProgressWebSocket } from '@/lib/taskProgress.js'
+import TaskProgress from '@/components/TaskProgress.jsx'
 import './App.css'
 
 function App() {
@@ -13,6 +15,9 @@ function App() {
   const [sessionId, setSessionId] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const messagesEndRef = useRef(null)
+  
+  // Use WebSocket hook for real-time task progress
+  const { tasks, currentStep, totalSteps, resetTasks } = useTaskProgressWebSocket(sessionId)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -66,6 +71,9 @@ function App() {
     setInputMessage('')
     setIsLoading(true)
 
+    // Reset tasks for new request
+    resetTasks()
+
     try {
       // Use the new API system
       const data = await apiRequest(API_ENDPOINTS.CHAT, {
@@ -90,6 +98,7 @@ function App() {
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
       console.error('❌ Error sending message:', error)
+
       const errorMessage = {
         id: Date.now() + 1,
         role: 'assistant',
@@ -241,6 +250,14 @@ function App() {
 
         {/* Input Area */}
         <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+          {/* Task Progress */}
+          <TaskProgress 
+            isVisible={isLoading || tasks.length > 0}
+            tasks={tasks}
+            currentStep={currentStep}
+            totalSteps={totalSteps}
+          />
+          
           <div className="flex items-end space-x-3">
             <div className="flex-1">
               <Input
