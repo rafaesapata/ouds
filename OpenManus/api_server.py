@@ -658,7 +658,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Create static directory if it doesn't exist
+static_dir = Path("static")
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
 # Run server
