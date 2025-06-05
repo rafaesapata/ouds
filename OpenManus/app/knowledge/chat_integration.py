@@ -17,6 +17,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Rastreamento de saudações por sessão
+greeting_sessions = set()
+
 async def process_chat_with_knowledge(session_id: str, message: str, workspace_id: str = "default") -> Dict:
     """
     Processa chat com integração completa do sistema de conhecimento
@@ -51,10 +54,33 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
         # Adicionar conhecimento global do sistema (sempre incluído)
         global_context = get_system_context_for_llm(max_entries=15)
         if global_context:
+            # Verificar se já enviamos saudação para esta sessão
+            is_first_message = session_id not in greeting_sessions
+            
+            # Se for a primeira mensagem, usar contexto normal
+            # Se não for a primeira mensagem, remover instruções de saudação
+            if not is_first_message:
+                # Remover instruções de saudação do contexto
+                global_context = global_context.replace("O agente deve sempre se apresentar como", "")
+                global_context = global_context.replace("deve se apresentar como", "")
+                global_context = global_context.replace("deve iniciar com", "")
+                global_context = global_context.replace("deve começar com", "")
+            
             context_messages.append({
                 "role": "system",
                 "content": global_context
             })
+            
+            # Adicionar instrução específica para evitar repetição de saudação
+            if not is_first_message:
+                context_messages.append({
+                    "role": "system",
+                    "content": "IMPORTANTE: NÃO repita a frase de saudação. O usuário já foi saudado anteriormente. Responda diretamente à pergunta sem se apresentar novamente."
+                })
+            
+            # Registrar que esta sessão já recebeu saudação
+            greeting_sessions.add(session_id)
+            
             logger.info("Conhecimento global aplicado ao contexto do chat")
         else:
             logger.warning("Conhecimento global não disponível para o contexto do chat")
@@ -201,192 +227,41 @@ async def process_chat_fallback(session_id: str, message: str, workspace_id: str
                 "timestamp": datetime.now(),
                 "status": "success",
                 "metadata": {
-                    "fallback": True,
-                    "knowledge_based": True,
-                    "knowledge_count": len(relevant_knowledge),
-                    "file_context_used": bool(file_context)
+                    "llm_used": "fallback",
+                    "context_type": "general",
+                    "confidence": 0.5,
+                    "knowledge_used": len(relevant_knowledge),
+                    "file_context_used": bool(file_context),
+                    "processing_time": 0.0,
+                    "knowledge_applied": bool(relevant_knowledge) or bool(file_context)
                 }
             }
-        
-        # Se não encontrou conhecimento, tentar usar o agente tradicional
-        try:
-            from app.session_manager import session_manager
-            from app.schema import Message, Role
-            
-            # Usar o agente tradicional como fallback
-            agent = session_manager.agents[workspace_id][session_id]
-            
-            # Processar mensagem
-            user_message = Message(role=Role.USER, content=message)
-            agent.memory.add_message(user_message)
-            
-            await agent.run(message)
-            
-            # Obter resposta
-            assistant_messages = [
-                msg for msg in agent.memory.messages 
-                if msg.role == Role.ASSISTANT
-            ]
-            
-            response_content = assistant_messages[-1].content if assistant_messages else "Processamento concluído."
-            
-            return {
-                "response": response_content,
-                "session_id": session_id,
-                "timestamp": datetime.now(),
-                "status": "success",
-                "metadata": {
-                    "llm_used": "traditional_agent",
-                    "fallback": True
-                }
-            }
-        except Exception as e:
-            logger.error(f"Erro no fallback do agente: {e}")
-            
-            # Último fallback - resposta genérica
+        else:
+            # Sem conhecimento relevante
             return {
                 "response": "Não encontrei informações específicas sobre isso na minha base de conhecimento.",
                 "session_id": session_id,
                 "timestamp": datetime.now(),
-                "status": "partial",
+                "status": "success",
                 "metadata": {
-                    "fallback": True,
-                    "error": str(e)
+                    "llm_used": "fallback",
+                    "context_type": "general",
+                    "confidence": 0.0,
+                    "knowledge_used": 0,
+                    "file_context_used": False,
+                    "processing_time": 0.0,
+                    "knowledge_applied": False
                 }
             }
-        
     except Exception as e:
         logger.error(f"Erro no fallback do chat: {e}")
         return {
-            "response": "Desculpe, ocorreu um erro ao processar sua mensagem.",
+            "response": f"Desculpe, ocorreu um erro ao processar sua mensagem: {str(e)}",
             "session_id": session_id,
             "timestamp": datetime.now(),
             "status": "error",
-            "error": str(e)
+            "metadata": {
+                "error": str(e)
+            }
         }
-
-# Função para streaming com conhecimento
-async def stream_chat_with_knowledge(session_id: str, message: str, workspace_id: str = "default"):
-    """
-    Streaming de chat com sistema de conhecimento
-    """
-    try:
-        from app.knowledge import knowledge_manager, llm_router, evolution_engine, get_file_context_for_chat
-        
-        # Buscar conhecimento relevante
-        relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=3)
-        
-        # Verificar se há referências a arquivos na mensagem
-        file_context = get_file_context_for_chat(workspace_id, message)
-        
-        # Classificar contexto e selecionar LLM
-        context_type = llm_router.classify_context(message)
-        selected_llm, confidence = llm_router.select_llm(context_type, workspace_id)
-        
-        # Preparar contexto
-        context_messages = []
-        
-        # Adicionar conhecimento do workspace
-        if relevant_knowledge:
-            knowledge_context = "Conhecimento relevante:\n"
-            for entry in relevant_knowledge:
-                knowledge_context += f"- {entry.content}\n"
-            
-            context_messages.append({
-                "role": "system",
-                "content": knowledge_context
-            })
-        
-        # Adicionar contexto de arquivos
-        if file_context:
-            context_messages.append({
-                "role": "system",
-                "content": f"Informações de arquivos:\n{file_context}"
-            })
-        
-        # Adicionar mensagem do usuário
-        context_messages.append({
-            "role": "user",
-            "content": message
-        })
-        
-        # Yield informações iniciais
-        yield f"data: {json.dumps({'type': 'metadata', 'llm': selected_llm.value, 'context': context_type.value, 'knowledge_count': len(relevant_knowledge), 'file_context': bool(file_context)})}\n\n"
-        
-        # Simular streaming (implementação completa dependeria da API específica)
-        response_parts = []
-        
-        try:
-            # Para demonstração, vamos simular chunks de resposta
-            full_response = await llm_router.call_llm(selected_llm, context_messages, workspace_id)
-            
-            if selected_llm.value.startswith("openai"):
-                response_text = full_response["choices"][0]["message"]["content"]
-            elif selected_llm.value.startswith("anthropic"):
-                response_text = full_response["content"][0]["text"]
-            else:
-                response_text = str(full_response)
-                
-            # Dividir em chunks para simular streaming
-            words = response_text.split()
-            chunks = [" ".join(words[i:i+5]) for i in range(0, len(words), 5)]
-            
-            for chunk in chunks:
-                response_parts.append(chunk)
-                yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
-                await asyncio.sleep(0.1)  # Simular delay
-                
-        except Exception as e:
-            logger.error(f"Erro no streaming: {e}")
-            
-            # Fallback para conhecimento direto
-            if relevant_knowledge or file_context:
-                fallback_response = "Com base no conhecimento disponível:\n"
-                
-                # Adicionar conhecimento do workspace
-                if relevant_knowledge:
-                    for entry in relevant_knowledge:
-                        chunk = f"- {entry.content}\n"
-                        fallback_response += chunk
-                        yield f"data: {json.dumps({'type': 'content', 'content': chunk, 'fallback': True})}\n\n"
-                        await asyncio.sleep(0.1)
-                
-                # Adicionar contexto de arquivos
-                if file_context:
-                    chunks = file_context.split('\n')
-                    for chunk in chunks:
-                        chunk_with_newline = chunk + "\n"
-                        yield f"data: {json.dumps({'type': 'content', 'content': chunk_with_newline, 'fallback': True})}\n\n"
-                        await asyncio.sleep(0.1)
-            else:
-                fallback_chunk = "Não encontrei informações específicas sobre isso."
-                yield f"data: {json.dumps({'type': 'content', 'content': fallback_chunk, 'fallback': True})}\n\n"
-        
-        # Finalizar streaming
-        yield f"data: {json.dumps({'type': 'end'})}\n\n"
-        
-        # Registrar conversa
-        try:
-            full_response = " ".join(response_parts)
-            conversation = ConversationRecord(
-                id=f"conv_{session_id}_{datetime.now().timestamp()}",
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                user_message=message,
-                assistant_response=full_response,
-                llm_used=selected_llm.value,
-                context_retrieved=[entry.id for entry in relevant_knowledge],
-                knowledge_learned=[]
-            )
-            
-            # Processar para aprendizado (assíncrono)
-            asyncio.create_task(evolution_engine.process_conversation(conversation, workspace_id))
-            
-            # Adicionar ao histórico
-            knowledge_manager.add_conversation(workspace_id, conversation)
-        except Exception as e:
-            logger.error(f"Erro ao registrar conversa de streaming: {e}")
-            
-    except Exception as e:
-        logger.error(f"Erro no streaming de chat: {e}")
-        yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 

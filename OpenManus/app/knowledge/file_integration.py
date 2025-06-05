@@ -183,8 +183,8 @@ def get_file_context_for_chat(workspace_id: str, message: str) -> Optional[str]:
         # Se não houver menção explícita, mas há palavras-chave de arquivo,
         # incluir informações sobre os arquivos disponíveis
         if not mentioned_files and has_file_reference:
-            file_list = "\\n".join([f"- {file['name']} ({file['type']})" for file in files[:5]])
-            return f"Arquivos disponíveis no workspace:\\n{file_list}"
+            file_list = "\n".join([f"- {file['name']} ({file['type']})" for file in files[:5]])
+            return f"Arquivos disponíveis no workspace:\n{file_list}"
         
         # Para cada arquivo mencionado, ler seu conteúdo
         file_contents = []
@@ -194,10 +194,10 @@ def get_file_context_for_chat(workspace_id: str, message: str) -> Optional[str]:
                 # Limitar tamanho do conteúdo para não sobrecarregar o contexto
                 if len(content) > 1000:
                     content = content[:1000] + "... [conteúdo truncado]"
-                file_contents.append(f"Conteúdo do arquivo {filename}:\\n```\\n{content}\\n```")
+                file_contents.append(f"Conteúdo do arquivo {filename}:\n```\n{content}\n```")
         
         if file_contents:
-            return "\\n\\n".join(file_contents)
+            return "\n\n".join(file_contents)
         
         return None
         
