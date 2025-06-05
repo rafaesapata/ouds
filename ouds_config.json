@@ -1,0 +1,195 @@
+{
+  "project": {
+    "name": "OUDS - Oráculo UDS",
+    "version": "1.0.0",
+    "description": "Sistema de IA conversacional baseado no OpenManus com interface web moderna",
+    "created": "2025-06-05",
+    "author": "Equipe UDS",
+    "license": "MIT"
+  },
+  "architecture": {
+    "backend": {
+      "framework": "FastAPI",
+      "language": "Python 3.11+",
+      "port": 8000,
+      "host": "0.0.0.0",
+      "base_url": "http://localhost:8000",
+      "main_file": "OpenManus/api_server.py"
+    },
+    "frontend": {
+      "framework": "React + Vite",
+      "language": "JavaScript",
+      "port": 5173,
+      "host": "localhost",
+      "base_url": "http://localhost:5173",
+      "main_file": "ouds-frontend/src/App.jsx"
+    },
+    "core": {
+      "engine": "OpenManus",
+      "base_path": "OpenManus/",
+      "main_agent": "app.agent.manus.Manus"
+    }
+  },
+  "features": {
+    "implemented": [
+      "Interface de chat moderna",
+      "API REST completa",
+      "Gerenciamento de sessões",
+      "Comunicação assíncrona",
+      "Tratamento de erros",
+      "Design responsivo",
+      "Indicadores de status",
+      "Histórico de conversas",
+      "Botão nova conversa",
+      "Configuração via .env"
+    ],
+    "planned": [
+      "Autenticação de usuários",
+      "Upload de arquivos",
+      "WebSocket em tempo real",
+      "Temas dark/light",
+      "Histórico persistente",
+      "Métricas e analytics",
+      "Rate limiting",
+      "Testes automatizados"
+    ]
+  },
+  "dependencies": {
+    "backend": {
+      "required": [
+        "fastapi>=0.115.11",
+        "uvicorn>=0.34.0",
+        "pydantic>=2.10.6",
+        "openai>=1.66.3",
+        "tiktoken>=0.9.0",
+        "loguru>=0.7.3"
+      ],
+      "file": "OpenManus/requirements.txt"
+    },
+    "frontend": {
+      "required": [
+        "react",
+        "vite",
+        "tailwindcss",
+        "@shadcn/ui",
+        "lucide-react"
+      ],
+      "file": "ouds-frontend/package.json"
+    }
+  },
+  "configuration": {
+    "environment_variables": {
+      "OPENAI_API_KEY": {
+        "required": true,
+        "description": "Chave da API OpenAI para o agente funcionar"
+      },
+      "WORKSPACE_ROOT": {
+        "required": false,
+        "default": "./workspace",
+        "description": "Diretório de trabalho do agente"
+      },
+      "LOG_LEVEL": {
+        "required": false,
+        "default": "INFO",
+        "description": "Nível de log (DEBUG, INFO, WARNING, ERROR)"
+      }
+    },
+    "files": {
+      "backend_env": "OpenManus/.env",
+      "frontend_config": "ouds-frontend/vite.config.js"
+    }
+  },
+  "api": {
+    "base_url": "http://localhost:8000",
+    "endpoints": {
+      "root": {
+        "method": "GET",
+        "path": "/",
+        "description": "Informações básicas da API"
+      },
+      "chat": {
+        "method": "POST",
+        "path": "/api/chat",
+        "description": "Enviar mensagem para o agente",
+        "body": {
+          "message": "string",
+          "session_id": "string (opcional)"
+        }
+      },
+      "sessions": {
+        "method": "GET",
+        "path": "/api/sessions",
+        "description": "Listar sessões ativas"
+      },
+      "session_history": {
+        "method": "GET",
+        "path": "/api/sessions/{session_id}/history",
+        "description": "Obter histórico de uma sessão"
+      },
+      "delete_session": {
+        "method": "DELETE",
+        "path": "/api/sessions/{session_id}",
+        "description": "Deletar uma sessão"
+      },
+      "websocket": {
+        "method": "WebSocket",
+        "path": "/ws/{session_id}",
+        "description": "Comunicação em tempo real (preparado)"
+      }
+    }
+  },
+  "deployment": {
+    "development": {
+      "backend": "python3 api_server.py",
+      "frontend": "npm run dev --host",
+      "combined": "./start_ouds.sh"
+    },
+    "production": {
+      "backend": "gunicorn -w 4 -k uvicorn.workers.UvicornWorker api_server:app --bind 0.0.0.0:8000",
+      "frontend": "npm run build && serve -s dist",
+      "requirements": [
+        "gunicorn",
+        "serve"
+      ]
+    }
+  },
+  "testing": {
+    "backend": {
+      "api_test": "curl http://localhost:8000/",
+      "chat_test": "curl -X POST http://localhost:8000/api/chat -H 'Content-Type: application/json' -d '{\"message\":\"teste\"}'"
+    },
+    "frontend": {
+      "dev_server": "http://localhost:5173",
+      "build_test": "npm run build && npm run preview"
+    }
+  },
+  "files": {
+    "documentation": [
+      "OUDS_README.md",
+      "OUDS_GUIA_RAPIDO.md"
+    ],
+    "scripts": [
+      "install_ouds.sh",
+      "start_ouds.sh",
+      "start_backend.sh",
+      "start_frontend.sh"
+    ],
+    "configuration": [
+      "ouds_config.json",
+      "OpenManus/.env",
+      "ouds-frontend/vite.config.js"
+    ],
+    "main_code": [
+      "OpenManus/api_server.py",
+      "ouds-frontend/src/App.jsx"
+    ]
+  },
+  "status": {
+    "development": "completed",
+    "testing": "completed",
+    "documentation": "completed",
+    "deployment_ready": true,
+    "production_ready": false
+  }
+}
+
