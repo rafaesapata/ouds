@@ -16,6 +16,9 @@ from pathlib import Path
 import logging
 from enum import Enum
 
+# Configurar logger
+logger = logging.getLogger(__name__)
+
 # Import opcional do aiohttp
 try:
     import aiohttp
@@ -23,8 +26,6 @@ try:
 except ImportError:
     AIOHTTP_AVAILABLE = False
     logger.warning("aiohttp não disponível - funcionalidades de HTTP assíncrono limitadas")
-
-logger = logging.getLogger(__name__)
 
 class LLMProvider(Enum):
     """Provedores de LLM disponíveis"""

@@ -13,6 +13,9 @@ from datetime import datetime, timezone
 import asyncio
 import logging
 
+# Configurar logger
+logger = logging.getLogger(__name__)
+
 # Importações opcionais do sistema de conhecimento
 try:
     from app.knowledge import (
@@ -27,7 +30,6 @@ try:
     KNOWLEDGE_SYSTEM_AVAILABLE = True
 except ImportError as e:
     KNOWLEDGE_SYSTEM_AVAILABLE = False
-    logger = logging.getLogger(__name__)
     logger.warning(f"Sistema de conhecimento não disponível: {e}")
     
     # Criar classes mock para evitar erros
@@ -48,8 +50,6 @@ except ImportError as e:
     knowledge_manager = None
     llm_router = None
     evolution_engine = None
-
-logger = logging.getLogger(__name__)
 
 # Modelos Pydantic para as APIs
 class AddKnowledgeRequest(BaseModel):
