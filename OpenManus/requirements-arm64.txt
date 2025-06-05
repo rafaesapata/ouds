@@ -1,0 +1,36 @@
+# OUDS - Dependências para ARM64
+# ===============================
+# Versão otimizada para arquitetura ARM64 (Apple Silicon, Raspberry Pi, etc.)
+
+# Core API (compatível com ARM64)
+fastapi>=0.100.0,<1.0.0
+uvicorn[standard]>=0.20.0,<1.0.0
+pydantic>=2.0.0,<3.0.0
+
+# OpenAI Integration (essencial)
+openai>=1.0.0,<2.0.0
+tiktoken>=0.5.0
+
+# HTTP e Async (ARM64 compatível)
+httpx>=0.24.0
+aiofiles>=0.8.0
+anyio>=3.0.0
+
+# Utilities básicas
+requests>=2.28.0
+pyyaml>=6.0.0
+loguru>=0.6.0
+
+# MCP Alternatives para ARM64
+# Opção 1: MCP oficial (se disponível)
+# mcp>=1.9.0
+
+# Opção 2: Implementação alternativa
+# mcp-server>=0.1.0
+
+# Opção 3: Dependências básicas do MCP manualmente
+httpx-sse>=0.3.0
+sse-starlette>=1.0.0
+starlette>=0.20.0
+pydantic-settings>=2.0.0
+

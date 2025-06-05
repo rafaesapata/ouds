@@ -47,8 +47,22 @@ echo "🔧 Configurando Backend (API OUDS)..."
 cd OpenManus
 
 echo "📦 Instalando dependências Python..."
+
+# Detectar arquitetura
+ARCH=$(uname -m)
+echo "🔍 Arquitetura detectada: $ARCH"
+
+# Escolher arquivo de dependências baseado na arquitetura
+if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
+    REQUIREMENTS_FILE="requirements-arm64.txt"
+    echo "📱 Usando dependências otimizadas para ARM64..."
+else
+    REQUIREMENTS_FILE="requirements.txt"
+    echo "💻 Usando dependências padrão para x86_64..."
+fi
+
 echo "Tentando instalação completa primeiro..."
-if pip3 install -r requirements.txt; then
+if pip3 install -r $REQUIREMENTS_FILE; then
     echo "✅ Dependências completas instaladas com sucesso!"
 else
     echo "⚠️ Erro na instalação completa. Tentando instalação mínima..."
@@ -56,8 +70,15 @@ else
         echo "✅ Dependências mínimas instaladas com sucesso!"
         echo "ℹ️ Algumas funcionalidades avançadas podem não estar disponíveis."
     else
-        echo "❌ Erro na instalação das dependências. Verifique sua conexão e tente novamente."
-        exit 1
+        echo "⚠️ Erro na instalação mínima. Tentando instalação ultra-mínima..."
+        if pip3 install -r requirements-core.txt; then
+            echo "✅ Dependências ultra-mínimas instaladas com sucesso!"
+            echo "⚠️ Apenas funcionalidades básicas estarão disponíveis."
+        else
+            echo "❌ Erro na instalação das dependências. Verifique sua conexão e tente novamente."
+            echo "💡 Dica: Tente instalar manualmente: pip3 install fastapi uvicorn openai"
+            exit 1
+        fi
     fi
 fi
 
@@ -149,7 +170,7 @@ chmod +x start_ouds.sh
 cat > ouds_config.json << EOF
 {
   "name": "OUDS - Oráculo UDS",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Sistema de IA conversacional OUDS - Oráculo UDS",
   "backend": {
     "port": 8000,

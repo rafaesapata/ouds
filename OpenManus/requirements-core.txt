@@ -1,0 +1,24 @@
+# OUDS - Dependências Ultra-Mínimas
+# ==================================
+# Este arquivo contém APENAS as dependências absolutamente essenciais para o OUDS funcionar
+
+# Core API Framework
+fastapi>=0.100.0
+uvicorn>=0.20.0
+pydantic>=2.0.0
+
+# OpenAI Integration (essencial para IA)
+openai>=1.0.0
+tiktoken>=0.5.0
+
+# Utilities básicas
+httpx>=0.24.0
+requests>=2.28.0
+aiofiles>=0.8.0
+
+# Logging
+loguru>=0.6.0
+
+# YAML support (para configurações)
+pyyaml>=6.0
+
