@@ -360,16 +360,41 @@ echo ""
 echo "🔍 Verificando instalação..."
 echo "============================"
 
-test_packages=("fastapi" "uvicorn" "pydantic" "openai" "tiktoken" "boto3" "requests" "tenacity" "docker" "beautifulsoup4" "pandas" "browser_use" "mcp" "duckduckgo_search" "googlesearch" "baidusearch")
-
-for package in "${test_packages[@]}"; do
-    if python3 -c "import $package" 2>/dev/null; then
-        version=$(python3 -c "import $package; print(getattr($package, '__version__', 'N/A'))" 2>/dev/null)
-        echo "✅ $package ($version)"
+# Função para verificar módulo com nome correto
+check_module() {
+    local package_name=$1
+    local module_name=$2
+    
+    if python3 -c "import $module_name" 2>/dev/null; then
+        version=$(python3 -c "import $module_name; print(getattr($module_name, '__version__', 'N/A'))" 2>/dev/null)
+        echo "✅ $package_name ($version)"
+        return 0
     else
-        echo "❌ $package (não instalado)"
+        echo "❌ $package_name (não instalado)"
+        return 1
     fi
-done
+}
+
+# Verificar pacotes com mapeamento correto de nomes
+echo "Verificando módulos essenciais:"
+check_module "fastapi" "fastapi"
+check_module "uvicorn" "uvicorn"
+check_module "pydantic" "pydantic"
+check_module "openai" "openai"
+check_module "tiktoken" "tiktoken"
+check_module "boto3" "boto3"
+check_module "requests" "requests"
+check_module "tenacity" "tenacity"
+check_module "docker" "docker"
+check_module "beautifulsoup4" "bs4"
+check_module "pandas" "pandas"
+check_module "browser-use" "browser_use"
+check_module "mcp" "mcp"
+check_module "duckduckgo-search" "duckduckgo_search"
+check_module "googlesearch-python" "googlesearch"
+check_module "baidusearch" "baidusearch"
+check_module "playwright" "playwright"
+check_module "tomli" "tomli"
 
 echo ""
 echo "🎯 Próximos passos:"
