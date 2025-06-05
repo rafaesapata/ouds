@@ -6,6 +6,7 @@ Versão melhorada do processamento de chat que integra:
 - Base de conhecimento por workspace
 - Roteamento inteligente de LLMs
 - Aprendizado automático
+- Acesso a arquivos do workspace
 """
 
 import asyncio
@@ -22,7 +23,7 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
     """
     try:
         # Importar módulos de conhecimento
-        from app.knowledge import knowledge_manager, llm_router, evolution_engine, ConversationRecord, get_system_context_for_llm
+        from app.knowledge import knowledge_manager, llm_router, evolution_engine, ConversationRecord, get_system_context_for_llm, get_file_context_for_chat
         
         # 1. Buscar conhecimento relevante do workspace
         relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=5)
@@ -35,11 +36,16 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
         else:
             logger.info(f"Nenhum conhecimento relevante encontrado para '{message[:30]}...'")
         
-        # 2. Classificar contexto e selecionar LLM
+        # 2. Verificar se há referências a arquivos na mensagem
+        file_context = get_file_context_for_chat(workspace_id, message)
+        if file_context:
+            logger.info(f"Contexto de arquivos encontrado para '{message[:30]}...'")
+        
+        # 3. Classificar contexto e selecionar LLM
         context_type = llm_router.classify_context(message)
         selected_llm, confidence = llm_router.select_llm(context_type, workspace_id)
         
-        # 3. Preparar contexto com conhecimento global e do workspace
+        # 4. Preparar contexto com conhecimento global, do workspace e arquivos
         context_messages = []
         
         # Adicionar conhecimento global do sistema (sempre incluído)
@@ -53,6 +59,9 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
         else:
             logger.warning("Conhecimento global não disponível para o contexto do chat")
         
+        # Adicionar contexto combinado (conhecimento do workspace + arquivos)
+        combined_context = ""
+        
         # Adicionar conhecimento relevante do workspace
         workspace_context = None
         if relevant_knowledge:
@@ -62,11 +71,22 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
                 # Atualizar estatísticas de uso
                 knowledge_manager.update_knowledge_usage(workspace_id, entry.id)
             
+            combined_context += workspace_context
+            logger.info("Conhecimento do workspace aplicado ao contexto do chat")
+        
+        # Adicionar contexto de arquivos
+        if file_context:
+            if combined_context:
+                combined_context += "\n\n"
+            combined_context += f"Informações de arquivos do workspace:\n{file_context}"
+            logger.info("Contexto de arquivos aplicado ao contexto do chat")
+        
+        # Adicionar contexto combinado se existir
+        if combined_context:
             context_messages.append({
                 "role": "system",
-                "content": workspace_context
+                "content": combined_context
             })
-            logger.info("Conhecimento do workspace aplicado ao contexto do chat")
         
         # Adicionar mensagem do usuário
         context_messages.append({
@@ -74,7 +94,7 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
             "content": message
         })
         
-        # 4. Chamar LLM selecionada
+        # 5. Chamar LLM selecionada
         start_time = datetime.now()
         try:
             llm_response = await llm_router.call_llm(selected_llm, context_messages, workspace_id)
@@ -91,16 +111,16 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
             logger.error(f"Erro ao chamar LLM: {e}")
             
             # Fallback para resposta baseada no conhecimento encontrado
-            if workspace_context:
+            if combined_context:
                 # Usar o conhecimento encontrado para gerar uma resposta simples
-                response_content = f"Com base no conhecimento disponível: {workspace_context}"
+                response_content = f"Com base no conhecimento disponível: {combined_context}"
             else:
                 # Sem conhecimento relevante, usar resposta genérica
                 response_content = "Não encontrei informações específicas sobre isso na minha base de conhecimento."
             
             processing_time = (datetime.now() - start_time).total_seconds()
         
-        # 5. Criar registro de conversa
+        # 6. Criar registro de conversa
         conversation = ConversationRecord(
             id=f"conv_{session_id}_{datetime.now().timestamp()}",
             timestamp=datetime.now(timezone.utc).isoformat(),
@@ -112,13 +132,13 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
             processing_time=processing_time
         )
         
-        # 6. Processar para aprendizado (assíncrono)
+        # 7. Processar para aprendizado (assíncrono)
         try:
             asyncio.create_task(evolution_engine.process_conversation(conversation, workspace_id))
         except Exception as e:
             logger.error(f"Erro ao processar conversa para aprendizado: {e}")
         
-        # 7. Adicionar ao histórico
+        # 8. Adicionar ao histórico
         try:
             knowledge_manager.add_conversation(workspace_id, conversation)
         except Exception as e:
@@ -134,8 +154,9 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
                 "context_type": context_type.value,
                 "confidence": confidence,
                 "knowledge_used": len(relevant_knowledge),
+                "file_context_used": bool(file_context),
                 "processing_time": processing_time,
-                "knowledge_applied": bool(relevant_knowledge)
+                "knowledge_applied": bool(relevant_knowledge) or bool(file_context)
             }
         }
         
@@ -150,16 +171,29 @@ async def process_chat_fallback(session_id: str, message: str, workspace_id: str
     """
     try:
         # Tentar usar conhecimento sem LLM
-        from app.knowledge import knowledge_manager
+        from app.knowledge import knowledge_manager, get_file_context_for_chat
         
         # Buscar conhecimento relevante
         relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=5)
         
-        if relevant_knowledge:
-            # Construir resposta baseada no conhecimento encontrado
+        # Verificar se há referências a arquivos na mensagem
+        file_context = get_file_context_for_chat(workspace_id, message)
+        
+        # Construir resposta baseada no conhecimento e arquivos encontrados
+        if relevant_knowledge or file_context:
             response = "Com base no conhecimento disponível:\n\n"
-            for entry in relevant_knowledge:
-                response += f"- {entry.content}\n"
+            
+            # Adicionar conhecimento do workspace
+            if relevant_knowledge:
+                for entry in relevant_knowledge:
+                    response += f"- {entry.content}\n"
+                
+                if file_context:
+                    response += "\n\n"
+            
+            # Adicionar contexto de arquivos
+            if file_context:
+                response += f"Informações de arquivos:\n{file_context}"
             
             return {
                 "response": response,
@@ -169,7 +203,8 @@ async def process_chat_fallback(session_id: str, message: str, workspace_id: str
                 "metadata": {
                     "fallback": True,
                     "knowledge_based": True,
-                    "knowledge_count": len(relevant_knowledge)
+                    "knowledge_count": len(relevant_knowledge),
+                    "file_context_used": bool(file_context)
                 }
             }
         
@@ -236,10 +271,13 @@ async def stream_chat_with_knowledge(session_id: str, message: str, workspace_id
     Streaming de chat com sistema de conhecimento
     """
     try:
-        from app.knowledge import knowledge_manager, llm_router, evolution_engine
+        from app.knowledge import knowledge_manager, llm_router, evolution_engine, get_file_context_for_chat
         
         # Buscar conhecimento relevante
         relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=3)
+        
+        # Verificar se há referências a arquivos na mensagem
+        file_context = get_file_context_for_chat(workspace_id, message)
         
         # Classificar contexto e selecionar LLM
         context_type = llm_router.classify_context(message)
@@ -248,6 +286,7 @@ async def stream_chat_with_knowledge(session_id: str, message: str, workspace_id
         # Preparar contexto
         context_messages = []
         
+        # Adicionar conhecimento do workspace
         if relevant_knowledge:
             knowledge_context = "Conhecimento relevante:\n"
             for entry in relevant_knowledge:
@@ -258,13 +297,21 @@ async def stream_chat_with_knowledge(session_id: str, message: str, workspace_id
                 "content": knowledge_context
             })
         
+        # Adicionar contexto de arquivos
+        if file_context:
+            context_messages.append({
+                "role": "system",
+                "content": f"Informações de arquivos:\n{file_context}"
+            })
+        
+        # Adicionar mensagem do usuário
         context_messages.append({
             "role": "user",
             "content": message
         })
         
         # Yield informações iniciais
-        yield f"data: {json.dumps({'type': 'metadata', 'llm': selected_llm.value, 'context': context_type.value, 'knowledge_count': len(relevant_knowledge)})}\n\n"
+        yield f"data: {json.dumps({'type': 'metadata', 'llm': selected_llm.value, 'context': context_type.value, 'knowledge_count': len(relevant_knowledge), 'file_context': bool(file_context)})}\n\n"
         
         # Simular streaming (implementação completa dependeria da API específica)
         response_parts = []
@@ -293,13 +340,24 @@ async def stream_chat_with_knowledge(session_id: str, message: str, workspace_id
             logger.error(f"Erro no streaming: {e}")
             
             # Fallback para conhecimento direto
-            if relevant_knowledge:
+            if relevant_knowledge or file_context:
                 fallback_response = "Com base no conhecimento disponível:\n"
-                for entry in relevant_knowledge:
-                    chunk = f"- {entry.content}\n"
-                    fallback_response += chunk
-                    yield f"data: {json.dumps({'type': 'content', 'content': chunk, 'fallback': True})}\n\n"
-                    await asyncio.sleep(0.1)
+                
+                # Adicionar conhecimento do workspace
+                if relevant_knowledge:
+                    for entry in relevant_knowledge:
+                        chunk = f"- {entry.content}\n"
+                        fallback_response += chunk
+                        yield f"data: {json.dumps({'type': 'content', 'content': chunk, 'fallback': True})}\n\n"
+                        await asyncio.sleep(0.1)
+                
+                # Adicionar contexto de arquivos
+                if file_context:
+                    chunks = file_context.split('\n')
+                    for chunk in chunks:
+                        chunk_with_newline = chunk + "\n"
+                        yield f"data: {json.dumps({'type': 'content', 'content': chunk_with_newline, 'fallback': True})}\n\n"
+                        await asyncio.sleep(0.1)
             else:
                 fallback_chunk = "Não encontrei informações específicas sobre isso."
                 yield f"data: {json.dumps({'type': 'content', 'content': fallback_chunk, 'fallback': True})}\n\n"
