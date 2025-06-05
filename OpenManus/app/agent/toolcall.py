@@ -193,63 +193,76 @@ class ToolCallAgent(ReActAgent):
                 accumulated_tool_calls = []
 
                 # Get response with tool options and streaming
-                async for chunk in self.llm.ask_tool_streaming(
-                    messages=self.messages,
-                    system_msgs=(
-                        [Message.system_message(self.system_prompt)]
-                        if self.system_prompt
-                        else None
-                    ),
-                    tools=self.available_tools.to_openai_tools(),
-                    tool_choice=self.tool_choices,
-                    base64_image=self._current_base64_image,
-                ):
-                    if chunk.get("content"):
-                        accumulated_content += chunk["content"]
-                        yield chunk["content"]
-                    
-                    if chunk.get("tool_calls"):
-                        accumulated_tool_calls.extend(chunk["tool_calls"])
+                try:
+                    async for chunk in self.llm.ask_tool_streaming(
+                        messages=self.messages,
+                        system_msgs=(
+                            [Message.system_message(self.system_prompt)]
+                            if self.system_prompt
+                            else None
+                        ),
+                        tools=self.available_tools.to_openai_tools(),
+                        tool_choice=self.tool_choices,
+                        base64_image=self._current_base64_image,
+                    ):
+                        if isinstance(chunk, dict) and "content" in chunk:
+                            accumulated_content += chunk["content"]
+                            yield chunk["content"]
+                        
+                        if isinstance(chunk, dict) and "tool_calls" in chunk:
+                            accumulated_tool_calls.extend(chunk["tool_calls"])
+                except Exception as e:
+                    logger.error(f"Error in streaming LLM call: {e}")
+                    yield {"error": f"Error in LLM call: {str(e)}"}
+                    # Create a simple response to continue
+                    accumulated_content = "I encountered an error processing your request."
                 
                 # Create the complete response message
-                from app.schema import ToolCall as SchemaToolCall
-                tool_calls = []
-                if accumulated_tool_calls:
-                    for tc in accumulated_tool_calls:
-                        tool_calls.append(SchemaToolCall(
-                            id=tc.get("id", ""),
-                            type=tc.get("type", "function"),
-                            function={
-                                "name": tc["function"]["name"],
-                                "arguments": tc["function"]["arguments"]
-                            }
-                        ))
+                try:
+                    from app.schema import ToolCall as SchemaToolCall
+                    tool_calls = []
+                    if accumulated_tool_calls:
+                        for tc in accumulated_tool_calls:
+                            if isinstance(tc, dict) and "function" in tc:
+                                tool_calls.append(SchemaToolCall(
+                                    id=tc.get("id", ""),
+                                    type=tc.get("type", "function"),
+                                    function={
+                                        "name": tc["function"].get("name", ""),
+                                        "arguments": tc["function"].get("arguments", "{}")
+                                    }
+                                ))
 
-                # Create assistant message
-                response = Message(
-                    role="assistant",
-                    content=accumulated_content if accumulated_content else None,
-                    tool_calls=tool_calls if tool_calls else None
-                )
+                    # Create assistant message
+                    response = Message(
+                        role="assistant",
+                        content=accumulated_content if accumulated_content else None,
+                        tool_calls=tool_calls if tool_calls else None
+                    )
 
-                # Add assistant response to messages
-                self.messages += [response]
+                    # Add assistant response to messages
+                    self.messages += [response]
 
-                # Process tool calls if any
-                if response.tool_calls:
-                    self.tool_calls = response.tool_calls
-                    
-                    # Act phase
-                    if not await self.act():
-                        break
-                else:
-                    # No tool calls, check if we're done
-                    if response.content and any(
-                        special_name in response.content.lower()
-                        for special_name in self.special_tool_names
-                    ):
-                        self.state = AgentState.COMPLETED
-                        break
+                    # Process tool calls if any
+                    if response.tool_calls:
+                        self.tool_calls = response.tool_calls
+                        
+                        # Act phase
+                        if not await self.act():
+                            break
+                    else:
+                        # No tool calls, check if we're done
+                        if response.content and any(
+                            special_name in response.content.lower()
+                            for special_name in self.special_tool_names
+                        ):
+                            self.state = AgentState.COMPLETED
+                            break
+                except Exception as e:
+                    logger.error(f"Error processing response: {e}")
+                    yield {"error": f"Error processing response: {str(e)}"}
+                    self.state = AgentState.ERROR
+                    break
             
             except Exception as e:
                 logger.error(f"Error in streaming run: {e}")
@@ -258,10 +271,14 @@ class ToolCallAgent(ReActAgent):
                 break
 
         # Return final response
-        for msg in reversed(self.messages):
-            if hasattr(msg, 'role') and msg.role == "assistant" and hasattr(msg, 'content') and msg.content and not (hasattr(msg, 'tool_calls') and msg.tool_calls):
-                yield {"final": msg.content}
-                return
-        
-        yield {"final": "Task completed without a final response."}
+        try:
+            for msg in reversed(self.messages):
+                if isinstance(msg, Message) and msg.role == "assistant" and msg.content and not msg.tool_calls:
+                    yield {"final": msg.content}
+                    return
+            
+            yield {"final": "Task completed without a final response."}
+        except Exception as e:
+            logger.error(f"Error in final response: {e}")
+            yield {"final": "Error occurred while generating final response."}
 

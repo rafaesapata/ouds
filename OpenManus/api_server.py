@@ -184,46 +184,68 @@ async def process_chat_stream(session_id: str, message: str, workspace_id: str =
         if session_id not in session_manager.agents[workspace_id]:
             # Create agent if not exists
             from app.agent.toolcall import ToolCallAgent
-            session_manager.agents[workspace_id][session_id] = ToolCallAgent(name=f"agent_{session_id}")
+            agent = ToolCallAgent(name=f"agent_{session_id}")
+            
+            # Initialize memory
+            from app.agent.memory import Memory
+            agent.memory = Memory()
+            
+            # Store agent
+            session_manager.agents[workspace_id][session_id] = agent
         
         agent = session_manager.agents[workspace_id][session_id]
         
         # Log message
         logger.info(f"Processing streaming message in session {session_id} workspace {workspace_id}: {message}")
         
-        # Add user message to agent memory
-        from app.schema import Message, Role
-        user_message = Message(
-            role=Role.USER,
-            content=message
-        )
-        
         # Ensure memory is initialized
         if not hasattr(agent, 'memory') or agent.memory is None:
             from app.agent.memory import Memory
             agent.memory = Memory()
-            
-        agent.memory.add_message(user_message)
+            logger.info(f"Initialized memory for agent in session {session_id}")
+        
+        # Add user message to agent memory
+        from app.schema import Message, Role
+        try:
+            user_message = Message(
+                role=Role.USER,
+                content=message
+            )
+            agent.memory.add_message(user_message)
+        except Exception as e:
+            logger.error(f"Error adding message to memory: {e}")
+            # Create a basic memory if needed
+            from app.schema import Memory as SchemaMemory
+            agent.memory = SchemaMemory()
+            agent.memory.add_message(Message(role=Role.USER, content=message))
         
         # Run the agent
         yield f"data: {json.dumps({'type': 'start', 'session_id': session_id})}\n\n"
         
         # Process message with knowledge integration
-        from app.knowledge.chat_integration import get_context_for_chat
-        
-        # Get context from knowledge system
-        context = await get_context_for_chat(message, workspace_id)
-        if context:
-            logger.info(f"Applied context to message: {len(context)} chars")
-            # Add context to system message
-            agent.system_prompt = f"{agent.system_prompt}\n\nContexto relevante:\n{context}"
+        try:
+            from app.knowledge.chat_integration import get_context_for_chat
+            
+            # Get context from knowledge system
+            context = await get_context_for_chat(message, workspace_id)
+            if context:
+                logger.info(f"Applied context to message: {len(context)} chars")
+                # Add context to system message
+                agent.system_prompt = f"{agent.system_prompt}\n\nContexto relevante:\n{context}"
+        except Exception as e:
+            logger.error(f"Error getting context: {e}")
+            # Continue without context
         
         # Run agent with streaming
-        async for chunk in agent.run_with_streaming():
-            if isinstance(chunk, str) and chunk.strip():
-                yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
-            elif isinstance(chunk, dict):
-                yield f"data: {json.dumps({'type': 'status', 'data': chunk})}\n\n"
+        try:
+            async for chunk in agent.run_with_streaming():
+                if isinstance(chunk, str) and chunk.strip():
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                elif isinstance(chunk, dict):
+                    yield f"data: {json.dumps({'type': 'status', 'data': chunk})}\n\n"
+        except Exception as e:
+            logger.error(f"Error in agent streaming: {e}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
         
         # Send completion message
         yield f"data: {json.dumps({'type': 'end', 'session_id': session_id})}\n\n"
