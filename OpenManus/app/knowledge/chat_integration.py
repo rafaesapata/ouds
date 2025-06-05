@@ -9,6 +9,7 @@ Versão melhorada do processamento de chat que integra:
 """
 
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 import logging
@@ -25,6 +26,14 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
         
         # 1. Buscar conhecimento relevante do workspace
         relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=5)
+        
+        # Log detalhado do conhecimento encontrado
+        if relevant_knowledge:
+            logger.info(f"Conhecimento relevante encontrado para '{message[:30]}...': {len(relevant_knowledge)} entradas")
+            for i, entry in enumerate(relevant_knowledge):
+                logger.info(f"  [{i+1}] {entry.type}: {entry.content[:50]}...")
+        else:
+            logger.info(f"Nenhum conhecimento relevante encontrado para '{message[:30]}...'")
         
         # 2. Classificar contexto e selecionar LLM
         context_type = llm_router.classify_context(message)
@@ -45,6 +54,7 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
             logger.warning("Conhecimento global não disponível para o contexto do chat")
         
         # Adicionar conhecimento relevante do workspace
+        workspace_context = None
         if relevant_knowledge:
             workspace_context = "Conhecimento específico do workspace:\n"
             for entry in relevant_knowledge:
@@ -56,6 +66,7 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
                 "role": "system",
                 "content": workspace_context
             })
+            logger.info("Conhecimento do workspace aplicado ao contexto do chat")
         
         # Adicionar mensagem do usuário
         context_messages.append({
@@ -65,16 +76,29 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
         
         # 4. Chamar LLM selecionada
         start_time = datetime.now()
-        llm_response = await llm_router.call_llm(selected_llm, context_messages, workspace_id)
-        processing_time = (datetime.now() - start_time).total_seconds()
-        
-        # Extrair resposta baseada no provedor
-        if selected_llm.value.startswith("openai"):
-            response_content = llm_response["choices"][0]["message"]["content"]
-        elif selected_llm.value.startswith("anthropic"):
-            response_content = llm_response["content"][0]["text"]
-        else:
-            response_content = str(llm_response)
+        try:
+            llm_response = await llm_router.call_llm(selected_llm, context_messages, workspace_id)
+            processing_time = (datetime.now() - start_time).total_seconds()
+            
+            # Extrair resposta baseada no provedor
+            if selected_llm.value.startswith("openai"):
+                response_content = llm_response["choices"][0]["message"]["content"]
+            elif selected_llm.value.startswith("anthropic"):
+                response_content = llm_response["content"][0]["text"]
+            else:
+                response_content = str(llm_response)
+        except Exception as e:
+            logger.error(f"Erro ao chamar LLM: {e}")
+            
+            # Fallback para resposta baseada no conhecimento encontrado
+            if workspace_context:
+                # Usar o conhecimento encontrado para gerar uma resposta simples
+                response_content = f"Com base no conhecimento disponível: {workspace_context}"
+            else:
+                # Sem conhecimento relevante, usar resposta genérica
+                response_content = "Não encontrei informações específicas sobre isso na minha base de conhecimento."
+            
+            processing_time = (datetime.now() - start_time).total_seconds()
         
         # 5. Criar registro de conversa
         conversation = ConversationRecord(
@@ -89,10 +113,16 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
         )
         
         # 6. Processar para aprendizado (assíncrono)
-        asyncio.create_task(evolution_engine.process_conversation(conversation, workspace_id))
+        try:
+            asyncio.create_task(evolution_engine.process_conversation(conversation, workspace_id))
+        except Exception as e:
+            logger.error(f"Erro ao processar conversa para aprendizado: {e}")
         
         # 7. Adicionar ao histórico
-        knowledge_manager.add_conversation(workspace_id, conversation)
+        try:
+            knowledge_manager.add_conversation(workspace_id, conversation)
+        except Exception as e:
+            logger.error(f"Erro ao adicionar conversa ao histórico: {e}")
         
         return {
             "response": response_content,
@@ -104,7 +134,8 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
                 "context_type": context_type.value,
                 "confidence": confidence,
                 "knowledge_used": len(relevant_knowledge),
-                "processing_time": processing_time
+                "processing_time": processing_time,
+                "knowledge_applied": bool(relevant_knowledge)
             }
         }
         
@@ -118,34 +149,76 @@ async def process_chat_fallback(session_id: str, message: str, workspace_id: str
     Processamento de chat tradicional como fallback
     """
     try:
-        # Usar o agente tradicional como fallback
-        agent = session_manager.agents[workspace_id][session_id]
+        # Tentar usar conhecimento sem LLM
+        from app.knowledge import knowledge_manager
         
-        # Processar mensagem
-        from app.schema import Message, Role
-        user_message = Message(role=Role.USER, content=message)
-        agent.memory.add_message(user_message)
+        # Buscar conhecimento relevante
+        relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=5)
         
-        await agent.run(message)
-        
-        # Obter resposta
-        assistant_messages = [
-            msg for msg in agent.memory.messages 
-            if msg.role == Role.ASSISTANT
-        ]
-        
-        response_content = assistant_messages[-1].content if assistant_messages else "Processamento concluído."
-        
-        return {
-            "response": response_content,
-            "session_id": session_id,
-            "timestamp": datetime.now(),
-            "status": "success",
-            "metadata": {
-                "llm_used": "traditional_agent",
-                "fallback": True
+        if relevant_knowledge:
+            # Construir resposta baseada no conhecimento encontrado
+            response = "Com base no conhecimento disponível:\n\n"
+            for entry in relevant_knowledge:
+                response += f"- {entry.content}\n"
+            
+            return {
+                "response": response,
+                "session_id": session_id,
+                "timestamp": datetime.now(),
+                "status": "success",
+                "metadata": {
+                    "fallback": True,
+                    "knowledge_based": True,
+                    "knowledge_count": len(relevant_knowledge)
+                }
             }
-        }
+        
+        # Se não encontrou conhecimento, tentar usar o agente tradicional
+        try:
+            from app.session_manager import session_manager
+            from app.schema import Message, Role
+            
+            # Usar o agente tradicional como fallback
+            agent = session_manager.agents[workspace_id][session_id]
+            
+            # Processar mensagem
+            user_message = Message(role=Role.USER, content=message)
+            agent.memory.add_message(user_message)
+            
+            await agent.run(message)
+            
+            # Obter resposta
+            assistant_messages = [
+                msg for msg in agent.memory.messages 
+                if msg.role == Role.ASSISTANT
+            ]
+            
+            response_content = assistant_messages[-1].content if assistant_messages else "Processamento concluído."
+            
+            return {
+                "response": response_content,
+                "session_id": session_id,
+                "timestamp": datetime.now(),
+                "status": "success",
+                "metadata": {
+                    "llm_used": "traditional_agent",
+                    "fallback": True
+                }
+            }
+        except Exception as e:
+            logger.error(f"Erro no fallback do agente: {e}")
+            
+            # Último fallback - resposta genérica
+            return {
+                "response": "Não encontrei informações específicas sobre isso na minha base de conhecimento.",
+                "session_id": session_id,
+                "timestamp": datetime.now(),
+                "status": "partial",
+                "metadata": {
+                    "fallback": True,
+                    "error": str(e)
+                }
+            }
         
     except Exception as e:
         logger.error(f"Erro no fallback do chat: {e}")
@@ -196,47 +269,66 @@ async def stream_chat_with_knowledge(session_id: str, message: str, workspace_id
         # Simular streaming (implementação completa dependeria da API específica)
         response_parts = []
         
-        # Para demonstração, vamos simular chunks de resposta
-        full_response = await llm_router.call_llm(selected_llm, context_messages, workspace_id)
-        
-        if selected_llm.value.startswith("openai"):
-            content = full_response["choices"][0]["message"]["content"]
-        elif selected_llm.value.startswith("anthropic"):
-            content = full_response["content"][0]["text"]
-        else:
-            content = str(full_response)
-        
-        # Simular streaming dividindo em palavras
-        words = content.split()
-        accumulated_response = ""
-        
-        for i, word in enumerate(words):
-            accumulated_response += word + " "
-            response_parts.append(word + " ")
+        try:
+            # Para demonstração, vamos simular chunks de resposta
+            full_response = await llm_router.call_llm(selected_llm, context_messages, workspace_id)
             
-            yield f"data: {json.dumps({'type': 'content', 'content': word + ' ', 'accumulated': accumulated_response.strip()})}\n\n"
+            if selected_llm.value.startswith("openai"):
+                response_text = full_response["choices"][0]["message"]["content"]
+            elif selected_llm.value.startswith("anthropic"):
+                response_text = full_response["content"][0]["text"]
+            else:
+                response_text = str(full_response)
+                
+            # Dividir em chunks para simular streaming
+            words = response_text.split()
+            chunks = [" ".join(words[i:i+5]) for i in range(0, len(words), 5)]
             
-            # Pequena pausa para simular streaming
-            await asyncio.sleep(0.05)
+            for chunk in chunks:
+                response_parts.append(chunk)
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
+                await asyncio.sleep(0.1)  # Simular delay
+                
+        except Exception as e:
+            logger.error(f"Erro no streaming: {e}")
+            
+            # Fallback para conhecimento direto
+            if relevant_knowledge:
+                fallback_response = "Com base no conhecimento disponível:\n"
+                for entry in relevant_knowledge:
+                    chunk = f"- {entry.content}\n"
+                    fallback_response += chunk
+                    yield f"data: {json.dumps({'type': 'content', 'content': chunk, 'fallback': True})}\n\n"
+                    await asyncio.sleep(0.1)
+            else:
+                fallback_chunk = "Não encontrei informações específicas sobre isso."
+                yield f"data: {json.dumps({'type': 'content', 'content': fallback_chunk, 'fallback': True})}\n\n"
         
         # Finalizar streaming
-        yield f"data: {json.dumps({'type': 'done', 'full_response': accumulated_response.strip()})}\n\n"
+        yield f"data: {json.dumps({'type': 'end'})}\n\n"
         
-        # Processar para aprendizado (assíncrono)
-        conversation = ConversationRecord(
-            id=f"conv_{session_id}_{datetime.now().timestamp()}",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            user_message=message,
-            assistant_response=accumulated_response.strip(),
-            llm_used=selected_llm.value,
-            context_retrieved=[entry.id for entry in relevant_knowledge],
-            knowledge_learned=[]
-        )
-        
-        asyncio.create_task(evolution_engine.process_conversation(conversation, workspace_id))
-        knowledge_manager.add_conversation(workspace_id, conversation)
-        
+        # Registrar conversa
+        try:
+            full_response = " ".join(response_parts)
+            conversation = ConversationRecord(
+                id=f"conv_{session_id}_{datetime.now().timestamp()}",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_message=message,
+                assistant_response=full_response,
+                llm_used=selected_llm.value,
+                context_retrieved=[entry.id for entry in relevant_knowledge],
+                knowledge_learned=[]
+            )
+            
+            # Processar para aprendizado (assíncrono)
+            asyncio.create_task(evolution_engine.process_conversation(conversation, workspace_id))
+            
+            # Adicionar ao histórico
+            knowledge_manager.add_conversation(workspace_id, conversation)
+        except Exception as e:
+            logger.error(f"Erro ao registrar conversa de streaming: {e}")
+            
     except Exception as e:
-        logger.error(f"Erro no streaming com conhecimento: {e}")
+        logger.error(f"Erro no streaming de chat: {e}")
         yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 

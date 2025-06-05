@@ -16,6 +16,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 import hashlib
 import logging
+import re
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -173,31 +174,66 @@ class WorkspaceKnowledgeManager:
             logger.error(f"Erro ao adicionar conhecimento: {e}")
             return False
     
+    def _tokenize_text(self, text: str) -> List[str]:
+        """Tokeniza texto em palavras-chave para busca"""
+        # Remover caracteres especiais e converter para minúsculas
+        text = re.sub(r'[^\w\s]', ' ', text.lower())
+        # Dividir em tokens e remover duplicatas
+        tokens = list(set(text.split()))
+        # Remover stopwords comuns em português
+        stopwords = {'a', 'o', 'e', 'é', 'de', 'do', 'da', 'em', 'no', 'na', 'um', 'uma', 'que', 'para', 'com', 'por'}
+        return [token for token in tokens if token not in stopwords and len(token) > 1]
+    
     def search_knowledge(self, workspace_id: str, query: str, limit: int = 10) -> List[KnowledgeEntry]:
         """Busca conhecimento relevante"""
         try:
             kb = self._load_knowledge_base(workspace_id)
             results = []
+            seen_ids = set()  # Para evitar duplicatas
             
-            query_lower = query.lower()
+            # Tokenizar a consulta
+            query_tokens = self._tokenize_text(query)
             
+            # Se não há tokens válidos, usar a consulta original
+            if not query_tokens:
+                query_tokens = [query.lower()]
+            
+            # Buscar por cada token
             for entry_data in kb["knowledge_entries"]:
-                entry = KnowledgeEntry(**entry_data)
+                # Evitar duplicatas
+                if entry_data["id"] in seen_ids:
+                    continue
                 
-                # Busca simples por palavras-chave
-                if query_lower in entry.content.lower():
-                    results.append(entry)
+                entry = KnowledgeEntry(**entry_data)
+                content_lower = entry.content.lower()
+                
+                # Pontuação para relevância
+                score = 0
+                
+                # Busca por tokens
+                for token in query_tokens:
+                    if token in content_lower:
+                        score += 1
                 
                 # Busca por tags
                 for tag in entry.tags:
-                    if query_lower in tag.lower():
-                        results.append(entry)
-                        break
+                    for token in query_tokens:
+                        if token in tag.lower():
+                            score += 0.5
+                
+                # Se encontrou alguma correspondência
+                if score > 0:
+                    # Adicionar à lista de resultados com pontuação
+                    results.append((entry, score))
+                    seen_ids.add(entry.id)
             
-            # Ordenar por relevância (confidence * usage_count)
-            results.sort(key=lambda x: x.confidence * (x.usage_count + 1), reverse=True)
+            # Ordenar por pontuação e depois por relevância (confidence * usage_count)
+            results.sort(key=lambda x: (x[1], x[0].confidence * (x[0].usage_count + 1)), reverse=True)
             
-            return results[:limit]
+            # Extrair apenas as entradas
+            entries = [entry for entry, _ in results]
+            
+            return entries[:limit]
             
         except Exception as e:
             logger.error(f"Erro ao buscar conhecimento: {e}")
@@ -299,30 +335,42 @@ class WorkspaceKnowledgeManager:
         """Remove conhecimento antigo e pouco usado"""
         try:
             kb = self._load_knowledge_base(workspace_id)
-            current_time = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            threshold = days_threshold * 24 * 60 * 60  # Converter para segundos
             
-            # Filtrar conhecimento relevante
-            filtered_entries = []
+            # Filtrar entradas
+            new_entries = []
             for entry in kb["knowledge_entries"]:
-                last_used = datetime.fromisoformat(entry["last_used"].replace('Z', '+00:00'))
-                days_since_use = (current_time - last_used).days
-                
-                # Manter se foi usado recentemente ou tem alta confiança
-                if days_since_use < days_threshold or entry["confidence"] > 0.8 or entry["usage_count"] > 5:
-                    filtered_entries.append(entry)
+                try:
+                    # Converter string ISO para datetime
+                    created_at = datetime.fromisoformat(entry["created_at"].replace('Z', '+00:00'))
+                    age_seconds = (now - created_at).total_seconds()
+                    
+                    # Manter se for recente ou tiver sido usado frequentemente
+                    if age_seconds < threshold or entry["usage_count"] > 5:
+                        new_entries.append(entry)
+                except Exception:
+                    # Em caso de erro, manter a entrada
+                    new_entries.append(entry)
             
             # Atualizar base de conhecimento
-            removed_count = len(kb["knowledge_entries"]) - len(filtered_entries)
-            kb["knowledge_entries"] = filtered_entries
-            
+            kb["knowledge_entries"] = new_entries
             self._save_knowledge_base(workspace_id, kb)
             
-            logger.info(f"Removidas {removed_count} entradas de conhecimento antigas do workspace {workspace_id}")
-            return removed_count
+            return len(kb["knowledge_entries"])
             
         except Exception as e:
             logger.error(f"Erro ao limpar conhecimento antigo: {e}")
-            return 0
+            return -1
+    
+    def get_all_entries(self, workspace_id: str) -> List[KnowledgeEntry]:
+        """Retorna todas as entradas de conhecimento do workspace"""
+        try:
+            kb = self._load_knowledge_base(workspace_id)
+            return [KnowledgeEntry(**entry_data) for entry_data in kb["knowledge_entries"]]
+        except Exception as e:
+            logger.error(f"Erro ao obter todas as entradas: {e}")
+            return []
 
 # Instância global do gerenciador
 knowledge_manager = WorkspaceKnowledgeManager()
