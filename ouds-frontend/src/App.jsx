@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Input } from '@/components/ui/input.jsx'
 import { ScrollArea } from '@/components/ui/scroll-area.jsx'
-import { Send, User, Bot, Loader2, Settings, RotateCcw, FolderOpen } from 'lucide-react'
+import { Send, User, Bot, Loader2, Settings, RotateCcw, FolderOpen, Paperclip } from 'lucide-react'
 import { apiRequest, checkBackendHealth, API_ENDPOINTS, buildApiUrl } from '@/lib/api.js'
 import { useTaskProgressWebSocket } from '@/lib/taskProgress.js'
 import TaskProgress from '@/components/TaskProgress.jsx'
@@ -20,7 +20,10 @@ function App() {
   const [streamingMessage, setStreamingMessage] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [showFileManager, setShowFileManager] = useState(false)
+  const [attachedFile, setAttachedFile] = useState(null)
+  const [isUploadingFile, setIsUploadingFile] = useState(false)
   const messagesEndRef = useRef(null)
+  const fileInputRef = useRef(null)
   
   // Use WebSocket hook for real-time task progress
   const { tasks, currentStep, totalSteps, resetTasks } = useTaskProgressWebSocket(sessionId)
@@ -86,12 +89,14 @@ function App() {
   };
 
   const sendMessageWithStreaming = async () => {
-    if (!inputMessage.trim() || isLoading) return
+    if ((!inputMessage.trim() && !attachedFile) || isLoading) return
 
     const userMessage = {
       id: Date.now(),
       role: 'user',
-      content: inputMessage,
+      content: attachedFile 
+        ? `${inputMessage || 'Arquivo enviado'}\n\n📎 Arquivo anexado: ${attachedFile.name}\n${attachedFile.content ? `Conteúdo do arquivo:\n\`\`\`\n${attachedFile.content}\n\`\`\`` : `Arquivo enviado: ${attachedFile.name} (${(attachedFile.size / 1024).toFixed(1)} KB)`}`
+        : inputMessage,
       timestamp: new Date().toISOString()
     }
 
@@ -118,7 +123,9 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: currentMessage,
+          message: attachedFile 
+            ? `${currentMessage || 'Arquivo enviado'}\n\n📎 Arquivo anexado: ${attachedFile.name}\n${attachedFile.content ? `Conteúdo do arquivo:\n\`\`\`\n${attachedFile.content}\n\`\`\`` : `Arquivo enviado: ${attachedFile.name} (${(attachedFile.size / 1024).toFixed(1)} KB)`}`
+            : currentMessage,
           session_id: sessionId
         }),
         signal: controller.signal
@@ -200,6 +207,8 @@ function App() {
       setIsStreaming(false);
       setStreamingMessage('');
       setAbortController(null);
+      // Clear attached file after sending
+      setAttachedFile(null);
     }
   };
 
@@ -302,8 +311,70 @@ function App() {
     setSessionId(null);
     setStreamingMessage('');
     setIsStreaming(false);
+    setAttachedFile(null);
     resetTasks();
     console.log('🔄 Chat cleared, starting new conversation');
+  };
+
+  const handleFileAttach = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsUploadingFile(true);
+    try {
+      // Upload file to workspace
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/service/api/workspace/files/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Try to read file content for text files
+      let fileContent = '';
+      if (file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md') || file.name.endsWith('.json')) {
+        try {
+          const previewResponse = await fetch(`/service/api/workspace/files/${encodeURIComponent(file.name)}/preview`);
+          if (previewResponse.ok) {
+            fileContent = await previewResponse.text();
+          }
+        } catch (error) {
+          console.warn('Could not read file content:', error);
+        }
+      }
+
+      setAttachedFile({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        content: fileContent,
+        uploadPath: result.saved_path
+      });
+
+      console.log('📎 File attached:', file.name);
+    } catch (error) {
+      console.error('❌ File upload error:', error);
+      alert(`Erro ao enviar arquivo: ${error.message}`);
+    } finally {
+      setIsUploadingFile(false);
+      // Clear the input so the same file can be selected again
+      event.target.value = '';
+    }
+  };
+
+  const removeAttachedFile = () => {
+    setAttachedFile(null);
   };
 
   const handleKeyPress = (e) => {
@@ -438,8 +509,9 @@ function App() {
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
                         Oráculo
                       </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        digitando...
+                      <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                        <span className="animate-pulse mr-1">●</span>
+                        processando...
                       </span>
                     </div>
                     <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
@@ -452,7 +524,7 @@ function App() {
                 </div>
               )}
               
-              {isLoading && (
+              {isLoading && !isStreaming && (
                 <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center">
@@ -462,12 +534,12 @@ function App() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        OUDS
+                        Oráculo
                       </span>
                     </div>
                     <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Digitando...</span>
+                      <span className="text-sm">Aguardando resposta...</span>
                     </div>
                   </div>
                 </div>
@@ -560,7 +632,45 @@ function App() {
             isVisible={true}
           />
           
+          {/* Attached file preview */}
+          {attachedFile && (
+            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Paperclip className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">{attachedFile.name}</span>
+                  <span className="text-xs text-blue-600">({(attachedFile.size / 1024).toFixed(1)} KB)</span>
+                  {attachedFile.content && (
+                    <span className="text-xs text-green-600">✓ Conteúdo lido</span>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={removeAttachedFile}
+                  className="text-blue-600 hover:text-blue-800 h-6 w-6 p-0"
+                >
+                  ×
+                </Button>
+              </div>
+            </div>
+          )}
+          
           <div className="flex items-end space-x-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleFileAttach}
+              disabled={isLoading || !isConnected || isUploadingFile}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              title="Anexar arquivo"
+            >
+              {isUploadingFile ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
+            </Button>
             <div className="flex-1">
               <Input
                 value={inputMessage}
@@ -573,8 +683,8 @@ function App() {
               />
             </div>
             <Button
-              onClick={isLoading ? cancelRequest : sendMessage}
-              disabled={!isConnected || (!isLoading && !inputMessage.trim())}
+              onClick={isLoading ? cancelRequest : sendMessageWithStreaming}
+              disabled={!isConnected || (!isLoading && !inputMessage.trim() && !attachedFile)}
               className={`px-4 py-2 ${
                 isLoading 
                   ? 'bg-red-600 hover:bg-red-700 text-white' 
@@ -593,6 +703,15 @@ function App() {
             </Button>
           </div>
           
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+            accept=".txt,.md,.json,.csv,.xml,.html,.css,.js,.py,.java,.cpp,.c,.h,.log"
+          />
+          
           {!isConnected && (
             <div className="mt-2 text-sm text-red-500 dark:text-red-400">
               ⚠️ Não foi possível conectar ao servidor. Verifique a configuração do backend no arquivo .env
@@ -604,7 +723,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v{__OUDS_VERSION__ || '1.0.0'}</span>
+              <span>v1.2.0</span>
             </div>
           </div>
         </div>
