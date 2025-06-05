@@ -59,6 +59,11 @@ class Manus(ToolCallAgent):
     @classmethod
     async def create(cls, **kwargs) -> "Manus":
         """Factory method to create and properly initialize a Manus instance."""
+        # Ensure workspace directory exists
+        workspace_path = config.workspace_root
+        workspace_path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Workspace directory ensured at: {workspace_path}")
+        
         instance = cls(**kwargs)
         await instance.initialize_mcp_servers()
         instance._initialized = True
