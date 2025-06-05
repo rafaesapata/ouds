@@ -179,7 +179,7 @@ chmod +x start_ouds.sh
 cat > ouds_config.json << EOF
 {
   "name": "OUDS - Oráculo UDS",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Sistema de IA conversacional OUDS - Oráculo UDS",
   "backend": {
     "port": 8000,
