@@ -161,11 +161,21 @@ class BaseAgent(BaseModel, ABC):
         """
 
     def handle_stuck_state(self):
-        """Handle stuck state by adding a prompt to change strategy"""
+        """Handle stuck state by adding a prompt to change strategy or terminate"""
         stuck_prompt = "\
-        Observed duplicate responses. Consider new strategies and avoid repeating ineffective paths already attempted."
+        Observed duplicate responses. You are stuck in a loop. Consider new strategies and avoid repeating ineffective paths already attempted. If you cannot provide a meaningful response or complete the task, use the 'terminate' tool to end the interaction gracefully."
         self.next_step_prompt = f"{stuck_prompt}\n{self.next_step_prompt}"
         logger.warning(f"Agent detected stuck state. Added prompt: {stuck_prompt}")
+        
+        # If stuck multiple times, force termination
+        if hasattr(self, '_stuck_count'):
+            self._stuck_count += 1
+        else:
+            self._stuck_count = 1
+            
+        if self._stuck_count >= 2:
+            logger.error(f"Agent stuck multiple times ({self._stuck_count}), forcing termination")
+            self.state = AgentState.FINISHED
 
     def is_stuck(self) -> bool:
         """Check if the agent is stuck in a loop by detecting duplicate content"""

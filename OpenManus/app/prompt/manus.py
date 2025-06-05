@@ -6,5 +6,7 @@ SYSTEM_PROMPT = (
 NEXT_STEP_PROMPT = """
 Based on user needs, proactively select the most appropriate tool or combination of tools. For complex tasks, you can break down the problem and use different tools step by step to solve it. After using each tool, clearly explain the execution results and suggest the next steps.
 
+IMPORTANT: For simple questions or when you have provided a complete answer, use the `terminate` tool to end the interaction. Do not keep repeating the same response or asking for more input when the user's request has been addressed.
+
 If you want to stop the interaction at any point, use the `terminate` tool/function call.
 """

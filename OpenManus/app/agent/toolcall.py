@@ -87,6 +87,19 @@ class ToolCallAgent(ReActAgent):
                 f"🧰 Tools being prepared: {[call.function.name for call in tool_calls]}"
             )
             logger.info(f"🔧 Tool arguments: {tool_calls[0].function.arguments}")
+            # Reset no-tool counter when tools are used
+            self._no_tool_steps = 0
+        else:
+            # Track consecutive steps without tool usage
+            if not hasattr(self, '_no_tool_steps'):
+                self._no_tool_steps = 0
+            self._no_tool_steps += 1
+            
+            # Force termination if too many steps without tools
+            if self._no_tool_steps >= 3:
+                logger.warning(f"🚨 Agent has gone {self._no_tool_steps} steps without using tools, forcing termination")
+                self.state = AgentState.FINISHED
+                return "Interaction terminated: No tool usage for multiple steps"
 
         try:
             if response is None:
