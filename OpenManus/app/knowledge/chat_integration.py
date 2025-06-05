@@ -26,7 +26,11 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
     """
     try:
         # Importar módulos de conhecimento
-        from app.knowledge import knowledge_manager, llm_router, evolution_engine, ConversationRecord, get_system_context_for_llm, get_file_context_for_chat
+        from app.knowledge import knowledge_manager, llm_router, evolution_engine, ConversationRecord, get_system_context_for_llm
+        from app.knowledge.file_integration import get_file_context_for_chat
+        
+        # Log do workspace sendo usado
+        logger.info(f"Processando chat para workspace_id: {workspace_id}")
         
         # 1. Buscar conhecimento relevante do workspace
         relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=5)
@@ -43,6 +47,9 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
         file_context = get_file_context_for_chat(workspace_id, message)
         if file_context:
             logger.info(f"Contexto de arquivos encontrado para '{message[:30]}...'")
+            logger.info(f"Contexto de arquivos: {file_context[:100]}...")
+        else:
+            logger.info(f"Nenhum contexto de arquivos encontrado para '{message[:30]}...'")
         
         # 3. Classificar contexto e selecionar LLM
         context_type = llm_router.classify_context(message)
@@ -139,7 +146,7 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
             # Fallback para resposta baseada no conhecimento encontrado
             if combined_context:
                 # Usar o conhecimento encontrado para gerar uma resposta simples
-                response_content = f"Com base no conhecimento disponível: {combined_context}"
+                response_content = f"Com base no conhecimento disponível:\n\n{combined_context}"
             else:
                 # Sem conhecimento relevante, usar resposta genérica
                 response_content = "Não encontrei informações específicas sobre isso na minha base de conhecimento."
@@ -182,7 +189,8 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
                 "knowledge_used": len(relevant_knowledge),
                 "file_context_used": bool(file_context),
                 "processing_time": processing_time,
-                "knowledge_applied": bool(relevant_knowledge) or bool(file_context)
+                "knowledge_applied": bool(relevant_knowledge) or bool(file_context),
+                "workspace_id": workspace_id  # Incluir workspace_id nos metadados
             }
         }
         
@@ -197,71 +205,61 @@ async def process_chat_fallback(session_id: str, message: str, workspace_id: str
     """
     try:
         # Tentar usar conhecimento sem LLM
-        from app.knowledge import knowledge_manager, get_file_context_for_chat
+        from app.knowledge import knowledge_manager
+        from app.knowledge.file_integration import get_file_context_for_chat
+        
+        # Log do workspace sendo usado
+        logger.info(f"Processando chat fallback para workspace_id: {workspace_id}")
         
         # Buscar conhecimento relevante
         relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=5)
         
-        # Verificar se há referências a arquivos na mensagem
+        # Verificar se há referências a arquivos
         file_context = get_file_context_for_chat(workspace_id, message)
         
-        # Construir resposta baseada no conhecimento e arquivos encontrados
-        if relevant_knowledge or file_context:
-            response = "Com base no conhecimento disponível:\n\n"
-            
-            # Adicionar conhecimento do workspace
-            if relevant_knowledge:
-                for entry in relevant_knowledge:
-                    response += f"- {entry.content}\n"
-                
-                if file_context:
-                    response += "\n\n"
-            
-            # Adicionar contexto de arquivos
-            if file_context:
-                response += f"Informações de arquivos:\n{file_context}"
-            
-            return {
-                "response": response,
-                "session_id": session_id,
-                "timestamp": datetime.now(),
-                "status": "success",
-                "metadata": {
-                    "llm_used": "fallback",
-                    "context_type": "general",
-                    "confidence": 0.5,
-                    "knowledge_used": len(relevant_knowledge),
-                    "file_context_used": bool(file_context),
-                    "processing_time": 0.0,
-                    "knowledge_applied": bool(relevant_knowledge) or bool(file_context)
-                }
-            }
+        # Construir resposta baseada no conhecimento encontrado
+        response_parts = []
+        
+        if relevant_knowledge:
+            response_parts.append("Com base no conhecimento disponível:")
+            for entry in relevant_knowledge:
+                response_parts.append(f"- {entry.content}")
+                # Atualizar estatísticas de uso
+                knowledge_manager.update_knowledge_usage(workspace_id, entry.id)
+        
+        if file_context:
+            if not response_parts:
+                response_parts.append("Encontrei as seguintes informações:")
+            response_parts.append(file_context)
+        
+        if response_parts:
+            response_content = "\n\n".join(response_parts)
         else:
-            # Sem conhecimento relevante
-            return {
-                "response": "Não encontrei informações específicas sobre isso na minha base de conhecimento.",
-                "session_id": session_id,
-                "timestamp": datetime.now(),
-                "status": "success",
-                "metadata": {
-                    "llm_used": "fallback",
-                    "context_type": "general",
-                    "confidence": 0.0,
-                    "knowledge_used": 0,
-                    "file_context_used": False,
-                    "processing_time": 0.0,
-                    "knowledge_applied": False
-                }
+            response_content = "Não encontrei informações específicas sobre isso na minha base de conhecimento."
+        
+        return {
+            "response": response_content,
+            "session_id": session_id,
+            "timestamp": datetime.now(),
+            "status": "success",
+            "metadata": {
+                "llm_used": "fallback",
+                "knowledge_used": len(relevant_knowledge),
+                "file_context_used": bool(file_context),
+                "workspace_id": workspace_id  # Incluir workspace_id nos metadados
             }
+        }
+        
     except Exception as e:
         logger.error(f"Erro no fallback do chat: {e}")
         return {
-            "response": f"Desculpe, ocorreu um erro ao processar sua mensagem: {str(e)}",
+            "response": f"Desculpe, ocorreu um erro ao processar sua mensagem: {e}",
             "session_id": session_id,
             "timestamp": datetime.now(),
             "status": "error",
             "metadata": {
-                "error": str(e)
+                "error": str(e),
+                "workspace_id": workspace_id  # Incluir workspace_id nos metadados
             }
         }
 
