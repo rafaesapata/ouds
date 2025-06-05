@@ -12,12 +12,12 @@ except ImportError:
     logging.getLogger(__name__).error("Falha ao importar get_system_context_for_llm")
 
 try:
-    from app.knowledge.workspace_knowledge import KnowledgeManager
+    from app.knowledge.workspace_knowledge import WorkspaceKnowledgeManager
     # Instância global do gerenciador de conhecimento
-    knowledge_manager = KnowledgeManager()
+    knowledge_manager = WorkspaceKnowledgeManager()
 except ImportError:
     import logging
-    logging.getLogger(__name__).error("Falha ao importar KnowledgeManager")
+    logging.getLogger(__name__).error("Falha ao importar WorkspaceKnowledgeManager")
 
 # Definição de tipos de dados
 class ConversationRecord:

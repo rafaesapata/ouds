@@ -18,8 +18,8 @@ def get_knowledge_manager():
         Instância do KnowledgeManager ou None em caso de erro
     """
     try:
-        from app.knowledge.workspace_knowledge import KnowledgeManager
-        return KnowledgeManager()
+        from app.knowledge.workspace_knowledge import WorkspaceKnowledgeManager
+        return WorkspaceKnowledgeManager()
     except Exception as e:
         logger.error(f"Erro ao obter KnowledgeManager: {e}")
         return None

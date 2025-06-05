@@ -59,30 +59,25 @@ except ImportError as e:
         logger.warning(f"Usando função de fallback para get_context_for_chat (workspace: {workspace_id})")
         try:
             # Tentar importar utilitários de conhecimento
-            from app.knowledge.knowledge_utils import get_knowledge_context, get_file_context
+            from app.knowledge.workspace_knowledge import WorkspaceKnowledgeManager
             
-            # Obter contexto de conhecimento
-            knowledge_context = await get_knowledge_context(message, workspace_id, limit=3)
+            # Criar instância local do KnowledgeManager
+            knowledge_manager = WorkspaceKnowledgeManager()
             
-            # Obter contexto de arquivos
-            file_context = await get_file_context(message, workspace_id)
+            # Buscar conhecimento relevante do workspace
+            relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=3)
             
-            # Combinar contextos
-            combined_context = ""
-            
-            if knowledge_context:
-                combined_context += knowledge_context
-            
-            if file_context:
-                if combined_context:
-                    combined_context += "\n\n"
-                combined_context += file_context
-            
-            return combined_context
-            
+            if relevant_knowledge:
+                context = "Conhecimento relevante:\n"
+                for entry in relevant_knowledge:
+                    context += f"- {entry.content}\n"
+                    # Atualizar estatísticas de uso
+                    knowledge_manager.update_knowledge_usage(workspace_id, entry.id)
+                return context
         except Exception as e:
             logger.error(f"Erro na função de fallback para get_context_for_chat: {e}")
-            return None
+        
+        return None
 
 
 async def simple_chat_stream_endpoint(request: Request):
