@@ -21,29 +21,37 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
     """
     try:
         # Importar módulos de conhecimento
-        from app.knowledge import knowledge_manager, llm_router, evolution_engine, ConversationRecord
+        from app.knowledge import knowledge_manager, llm_router, evolution_engine, ConversationRecord, get_system_context_for_llm
         
-        # 1. Buscar conhecimento relevante
+        # 1. Buscar conhecimento relevante do workspace
         relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=5)
         
         # 2. Classificar contexto e selecionar LLM
         context_type = llm_router.classify_context(message)
         selected_llm, confidence = llm_router.select_llm(context_type, workspace_id)
         
-        # 3. Preparar contexto com conhecimento relevante
+        # 3. Preparar contexto com conhecimento global e do workspace
         context_messages = []
         
-        # Adicionar conhecimento relevante ao contexto
+        # Adicionar conhecimento global do sistema (sempre incluído)
+        global_context = get_system_context_for_llm(max_entries=15)
+        if global_context:
+            context_messages.append({
+                "role": "system",
+                "content": global_context
+            })
+        
+        # Adicionar conhecimento relevante do workspace
         if relevant_knowledge:
-            knowledge_context = "Conhecimento relevante do workspace:\n"
+            workspace_context = "Conhecimento específico do workspace:\n"
             for entry in relevant_knowledge:
-                knowledge_context += f"- {entry.content}\n"
+                workspace_context += f"- {entry.content}\n"
                 # Atualizar estatísticas de uso
                 knowledge_manager.update_knowledge_usage(workspace_id, entry.id)
             
             context_messages.append({
                 "role": "system",
-                "content": knowledge_context
+                "content": workspace_context
             })
         
         # Adicionar mensagem do usuário

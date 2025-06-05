@@ -380,9 +380,14 @@ app.add_middleware(
 # Initialize knowledge system
 try:
     from app.knowledge.fastapi_routes import register_knowledge_routers, initialize_knowledge_system
+    from app.knowledge import get_global_knowledge
     
     # Initialize knowledge system
     if initialize_knowledge_system():
+        # Initialize global knowledge base
+        global_kb = get_global_knowledge()
+        logger.info(f"Base de conhecimento global carregada: {len(global_kb.get_all_entries())} entradas")
+        
         # Register knowledge system routers
         register_knowledge_routers(app)
         logger.info("Sistema de conhecimento integrado com sucesso")
