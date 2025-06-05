@@ -955,8 +955,10 @@ function App() {
         </>
       ) : (
         /* Knowledge Manager Tab */
-        <div className="flex-1 overflow-hidden">
-          <KnowledgeManager workspaceId={workspaceId || 'default'} />
+        <div className="flex-1 overflow-auto">
+          <div className="h-full">
+            <KnowledgeManager workspaceId={workspaceId || 'default'} />
+          </div>
         </div>
       )}
 

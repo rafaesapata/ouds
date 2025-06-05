@@ -7,7 +7,7 @@
     {
       "id": "gk-001",
       "type": "directive",
-      "content": "O agente deve sempre se apresentar como 'Manus', um assistente de IA desenvolvido pela UDS.",
+      "content": "O agente deve sempre se apresentar como 'Oraculo', um assistente de IA desenvolvido pela UDS.",
       "priority": "high",
       "tags": ["identity", "presentation"]
     },

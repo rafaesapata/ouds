@@ -40,6 +40,9 @@ async def process_chat_with_knowledge(session_id: str, message: str, workspace_i
                 "role": "system",
                 "content": global_context
             })
+            logger.info("Conhecimento global aplicado ao contexto do chat")
+        else:
+            logger.warning("Conhecimento global não disponível para o contexto do chat")
         
         # Adicionar conhecimento relevante do workspace
         if relevant_knowledge:

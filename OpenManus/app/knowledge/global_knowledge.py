@@ -275,7 +275,7 @@ class GlobalKnowledgeManager:
                     entry_count += 1
         
         if context_parts:
-            result = "CONHECIMENTO GLOBAL DO SISTEMA:\\n" + "\\n".join(context_parts)
+            result = "INSTRUÇÕES GLOBAIS DO SISTEMA:\\n\\n" + "\\n".join(context_parts) + "\\n\\nVocê DEVE seguir todas as instruções acima em todas as suas interações."
         else:
             result = ""
         
