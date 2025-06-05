@@ -23,14 +23,14 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: env.OUDS_FRONTEND_HOST || '0.0.0.0',
-      port: parseInt(env.OUDS_FRONTEND_PORT) || 5173,
+      port: parseInt(env.OUDS_FRONTEND_PORT) || 80,
       open: false, // CRÍTICO: Nunca abrir browser automaticamente (evita erro xdg-open ENOENT)
       strictPort: true, // Falha se a porta estiver ocupada
       allowedHosts: allowedHosts, // Hosts permitidos configurados via .env
       hmr: {
-        port: parseInt(env.VITE_HMR_PORT) || 5173,
+        port: parseInt(env.VITE_HMR_PORT) || 80,
         host: env.VITE_HMR_HOST || 'localhost',
-        clientPort: parseInt(env.VITE_HMR_PORT) || 5173
+        clientPort: parseInt(env.VITE_HMR_PORT) || 80
       },
       proxy: {
         // Proxy para API do backend
@@ -76,7 +76,7 @@ export default defineConfig(({ mode }) => {
     },
     preview: {
       host: env.OUDS_FRONTEND_HOST || 'localhost',
-      port: parseInt(env.OUDS_FRONTEND_PORT) || 5173,
+      port: parseInt(env.OUDS_FRONTEND_PORT) || 80,
       open: false, // Também desabilitar no preview
       strictPort: true,
       allowedHosts: allowedHosts // Também aplicar no preview

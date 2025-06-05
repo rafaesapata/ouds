@@ -60,12 +60,12 @@ fi
 echo ""
 echo "🔍 Verificando se o frontend está rodando:"
 echo "=========================================="
-if netstat -tlnp 2>/dev/null | grep -q ":5173"; then
-    echo "✅ Frontend rodando na porta 5173"
+if netstat -tlnp 2>/dev/null | grep -q ":80"; then
+    echo "✅ Frontend rodando na porta 80"
     echo "🌐 Teste o proxy em: http://o.udstec.io/api/"
     echo "🌐 Teste direto em: http://o.udstec.io/health"
 else
-    echo "❌ Frontend não está rodando na porta 5173"
+    echo "❌ Frontend não está rodando na porta 80"
     echo "💡 Execute: npm run dev"
 fi
 
@@ -73,7 +73,7 @@ echo ""
 echo "📋 Comandos para debug:"
 echo "======================"
 echo "1. Ver logs do frontend: npm run dev"
-echo "2. Testar proxy direto: curl http://localhost:5173/api/"
+echo "2. Testar proxy direto: curl http://localhost:80/api/"
 echo "3. Testar backend direto: curl $BACKEND_URL/"
 echo "4. Ver configuração: cat .env | grep -E '(API_URL|PROXY)'"
 
