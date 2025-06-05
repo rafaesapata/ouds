@@ -48,6 +48,25 @@ for package in "${critical_packages[@]}"; do
 done
 echo ""
 
+# Verificar conflitos com pacotes rpm
+echo "🔍 Verificando Conflitos RPM:"
+rpm_conflicts=("requests" "pyyaml" "urllib3" "certifi")
+
+for package in "${rpm_conflicts[@]}"; do
+    if python3 -c "import $package" 2>/dev/null; then
+        # Verificar se foi instalado via rpm
+        if rpm -q python3-$package 2>/dev/null || rpm -q python-$package 2>/dev/null; then
+            echo "- ⚠️ $package (instalado via RPM - possível conflito)"
+        else
+            version=$(python3 -c "import $package; print(getattr($package, '__version__', 'N/A'))" 2>/dev/null)
+            echo "- ✅ $package ($version - via pip)"
+        fi
+    else
+        echo "- ❌ $package (não instalado)"
+    fi
+done
+echo ""
+
 # Testar dependências opcionais
 echo "🔧 Testando Dependências Opcionais:"
 

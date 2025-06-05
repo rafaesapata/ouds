@@ -1,0 +1,30 @@
+# OUDS - Dependências com Resolução de Conflitos
+# ==============================================
+# Este arquivo resolve conflitos com pacotes instalados via rpm/sistema
+
+# Estratégia: Usar --user --force-reinstall --no-deps quando necessário
+
+# Core API
+fastapi>=0.100.0
+uvicorn>=0.20.0
+pydantic>=2.0.0
+
+# OpenAI Integration
+openai>=1.0.0
+tiktoken>=0.5.0
+
+# HTTP e Async (evitar conflitos)
+httpx>=0.24.0
+aiofiles>=0.8.0
+
+# Utilities (versões específicas para evitar conflitos)
+# requests será instalado com --force-reinstall se necessário
+requests>=2.28.0
+pyyaml>=6.0.0
+loguru>=0.6.0
+
+# MCP Support
+httpx-sse>=0.3.0
+sse-starlette>=1.0.0
+pydantic-settings>=2.0.0
+

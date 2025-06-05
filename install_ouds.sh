@@ -70,14 +70,23 @@ else
         echo "✅ Dependências mínimas instaladas com sucesso!"
         echo "ℹ️ Algumas funcionalidades avançadas podem não estar disponíveis."
     else
-        echo "⚠️ Erro na instalação mínima. Tentando instalação ultra-mínima..."
-        if pip3 install -r requirements-core.txt; then
-            echo "✅ Dependências ultra-mínimas instaladas com sucesso!"
-            echo "⚠️ Apenas funcionalidades básicas estarão disponíveis."
+        echo "⚠️ Erro na instalação mínima. Tentando instalação segura..."
+        if ./install-safe.sh; then
+            echo "✅ Dependências instaladas com método seguro!"
+            echo "ℹ️ Resolvidos conflitos com pacotes do sistema."
         else
-            echo "❌ Erro na instalação das dependências. Verifique sua conexão e tente novamente."
-            echo "💡 Dica: Tente instalar manualmente: pip3 install fastapi uvicorn openai"
-            exit 1
+            echo "⚠️ Erro na instalação segura. Tentando instalação ultra-mínima..."
+            if pip3 install -r requirements-core.txt; then
+                echo "✅ Dependências ultra-mínimas instaladas com sucesso!"
+                echo "⚠️ Apenas funcionalidades básicas estarão disponíveis."
+            else
+                echo "❌ Erro na instalação das dependências."
+                echo "💡 Possíveis soluções:"
+                echo "   1. Execute: ./install-safe.sh"
+                echo "   2. Instale manualmente: pip3 install --user fastapi uvicorn openai"
+                echo "   3. Use ambiente virtual: python3 -m venv venv && source venv/bin/activate"
+                exit 1
+            fi
         fi
     fi
 fi
@@ -170,7 +179,7 @@ chmod +x start_ouds.sh
 cat > ouds_config.json << EOF
 {
   "name": "OUDS - Oráculo UDS",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Sistema de IA conversacional OUDS - Oráculo UDS",
   "backend": {
     "port": 8000,
