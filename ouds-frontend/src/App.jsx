@@ -9,6 +9,7 @@ import TaskProgress from '@/components/TaskProgress.jsx'
 import FileManager from '@/components/FileManager.jsx'
 import CommandQueue from '@/components/CommandQueue.jsx'
 import KnowledgeManager from '@/components/KnowledgeManager.jsx'
+import StreamingMessage from '@/components/StreamingMessage.jsx'
 import ReactMarkdown from 'react-markdown'
 import './App.css'
 
@@ -149,7 +150,7 @@ function App() {
     try {
       console.log('🎯 Starting streaming request...');
       
-      const response = await fetch('/chat/stream', {
+      const response = await fetch('/service/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,6 +192,9 @@ function App() {
               if (data.type === 'progress') {
                 // Task progress updates are handled by WebSocket
                 console.log('📋 Task progress update received');
+              } else if (data.type === 'chunk') {
+                // Streaming chunk
+                setStreamingMessage(prev => prev + data.content);
               } else if (data.type === 'response') {
                 if (data.partial) {
                   setStreamingMessage(data.content);
@@ -205,12 +209,26 @@ function App() {
                   setMessages(prev => [...prev, assistantMessage]);
                   setStreamingMessage('');
                 }
-              } else if (data.type === 'complete') {
+              } else if (data.type === 'end') {
                 console.log('✅ Streaming completed');
                 setSessionId(data.session_id);
+                
+                // Add the final message to the chat history
+                if (streamingMessage) {
+                  const assistantMessage = {
+                    id: Date.now(),
+                    role: 'assistant',
+                    content: streamingMessage,
+                    timestamp: new Date().toISOString()
+                  };
+                  setMessages(prev => [...prev, assistantMessage]);
+                  setStreamingMessage('');
+                }
+                
                 break;
               } else if (data.type === 'error') {
-                throw new Error(data.message);
+                console.error('❌ Error from server:', data.error);
+                throw new Error(data.error || 'Unknown error');
               }
             } catch (parseError) {
               console.error('❌ Error parsing streaming data:', parseError);
@@ -667,23 +685,11 @@ function App() {
               ))}
               
               {/* Streaming message */}
-              {isStreaming && streamingMessage && (
-                <div className="flex items-start justify-start">
-                  <div className="flex items-start space-x-3 max-w-[80%]">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
-                        <Bot className="h-4 w-4 text-white" />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          Oráculo
-                        </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
-                          <span className="animate-pulse mr-1">●</span>
-                          processando...
-                        </span>
+              {isStreaming && (
+                <StreamingMessage content={streamingMessage} isStreaming={isStreaming} />
+              )}
+              
+              <div ref={messagesEndRef} />
                       </div>
                       <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
                         <ReactMarkdown 
