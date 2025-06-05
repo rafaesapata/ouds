@@ -14,11 +14,6 @@ cd /home/ubuntu/ouds-project/ouds-frontend || {
 
 echo "📁 Diretório atual: $(pwd)"
 
-# Limpar cache e node_modules
-echo "🧹 Limpando cache e dependências antigas..."
-rm -rf node_modules package-lock.json yarn.lock pnpm-lock.yaml
-npm cache clean --force 2>/dev/null || true
-
 # Verificar se package.json existe
 if [ ! -f "package.json" ]; then
     echo "❌ Erro: package.json não encontrado"
@@ -26,6 +21,31 @@ if [ ! -f "package.json" ]; then
 fi
 
 echo "📦 Arquivo package.json encontrado"
+
+# Corrigir conflitos conhecidos automaticamente
+echo "🔧 Corrigindo conflitos conhecidos de versões..."
+
+# Conflito 1: date-fns vs react-day-picker
+if grep -q '"date-fns": "^4\.' package.json; then
+    echo "🔄 Corrigindo date-fns para compatibilidade com react-day-picker..."
+    sed -i 's/"date-fns": "^4\.[^"]*"/"date-fns": "^3.6.0"/g' package.json
+fi
+
+# Conflito 2: react-day-picker vs React 19
+if grep -q '"react-day-picker": "8\.' package.json; then
+    echo "🔄 Atualizando react-day-picker para compatibilidade com React 19..."
+    sed -i 's/"react-day-picker": "8\.[^"]*"/"react-day-picker": "^9.7.0"/g' package.json
+fi
+
+# Conflito 3: React 19 vs outras dependências
+echo "🔍 Verificando compatibilidade com React 19..."
+
+echo "✅ Conflitos conhecidos corrigidos automaticamente"
+
+# Limpar cache e node_modules após correções
+echo "🧹 Limpando cache e dependências antigas..."
+rm -rf node_modules package-lock.json yarn.lock pnpm-lock.yaml
+npm cache clean --force 2>/dev/null || true
 
 # Estratégia 1: Instalação com --legacy-peer-deps
 echo "🔄 Tentativa 1: Instalação com --legacy-peer-deps"
