@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: env.OUDS_FRONTEND_HOST || '0.0.0.0',
       port: parseInt(env.OUDS_FRONTEND_PORT) || 5173,
-      open: env.OUDS_FRONTEND_OPEN === 'true' || false,
+      open: false, // Nunca abrir browser automaticamente (evita erro xdg-open)
       proxy: {
         // Proxy para API do backend
         '/api': {
