@@ -142,25 +142,10 @@ async def chat_endpoint(request: ChatRequest):
 @app.post("/chat/stream")
 async def chat_stream_endpoint(request: Request):
     """Streaming chat endpoint for processing user messages with SSE"""
-    try:
-        # Parse request body
-        body = await request.json()
-        message = body.get("message", "")
-        session_id = body.get("session_id", str(uuid.uuid4()))
-        workspace_id = body.get("workspace_id", "default")
-        
-        # Log request
-        logger.info(f"Streaming chat request: session={session_id}, workspace={workspace_id}, message={message[:50]}...")
-        
-        # Create streaming response directly without using session_manager
-        return StreamingResponse(
-            simple_chat_stream(session_id, message, workspace_id),
-            media_type="text/event-stream"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error in chat stream endpoint: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    # Import the simplified streaming module
+    from app.chat_stream import simple_chat_stream_endpoint
+    # Delegate to the simplified implementation
+    return await simple_chat_stream_endpoint(request)
 
 
 async def simple_chat_stream(session_id: str, message: str, workspace_id: str = "default"):
