@@ -53,6 +53,7 @@ critical_packages=(
     "pydantic>=2.0.0"
     "openai>=1.0.0"
     "tiktoken>=0.5.0"
+    "boto3>=1.30.0"
     "httpx>=0.24.0"
     "aiofiles>=0.8.0"
     "loguru>=0.6.0"
