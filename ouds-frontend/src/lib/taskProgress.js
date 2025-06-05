@@ -16,7 +16,7 @@ export class TaskProgressWebSocket {
   connect() {
     try {
       // Use WebSocket endpoint via proxy
-      const wsUrl = `ws://o.udstec.io/api/ws/${this.sessionId}`;
+      const wsUrl = `ws://o.udstec.io/service/ws/${this.sessionId}`;
       console.log('🔌 Connecting to WebSocket:', wsUrl);
       
       this.ws = new WebSocket(wsUrl);

@@ -33,19 +33,19 @@ export default defineConfig(({ mode }) => {
         clientPort: parseInt(env.VITE_HMR_PORT) || 80
       },
       proxy: {
-        // Proxy simples: /api → localhost:8000 (COM rewrite)
-        '/api': {
+        // Proxy simples: /service → localhost:8000 (COM rewrite)
+        '/service': {
           target: 'http://localhost:8000',
           changeOrigin: true,
           secure: false,
-          rewrite: (path) => path.replace(/^\/api/, ''),
+          rewrite: (path) => path.replace(/^\/service/, ''),
           configure: (proxy, options) => {
-            console.log('🔧 Proxy /api → http://localhost:8000 (com rewrite)');
+            console.log('🔧 Proxy /service → http://localhost:8000 (com rewrite)');
             proxy.on('error', (err, req, res) => {
               console.log('❌ Proxy error:', err.message);
             });
             proxy.on('proxyReq', (proxyReq, req, res) => {
-              console.log('🔄 Proxying:', req.method, req.url, '→', 'http://localhost:8000' + req.url.replace('/api', ''));
+              console.log('🔄 Proxying:', req.method, req.url, '→', 'http://localhost:8000' + req.url.replace('/service', ''));
             });
             proxy.on('proxyRes', (proxyRes, req, res) => {
               console.log('✅ Proxy response:', proxyRes.statusCode, req.url);

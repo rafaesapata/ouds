@@ -21,7 +21,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
   const fetchFiles = async () => {
     setLoading(true);
     try {
-      const response = await fetch(buildApiUrl('/api/workspace/files'), {
+      const response = await fetch('/service/api/workspace/files', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -89,7 +89,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
 
   const downloadFile = async (filename) => {
     try {
-      const response = await fetch(buildApiUrl(`/api/workspace/files/${encodeURIComponent(filename)}/download`), {
+      const response = await fetch(`/service/api/workspace/files/${encodeURIComponent(filename)}/download`, {
         method: 'GET',
       });
 
@@ -113,7 +113,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
 
   const previewFile = async (filename) => {
     try {
-      const response = await fetch(buildApiUrl(`/api/workspace/files/${encodeURIComponent(filename)}/preview`), {
+      const response = await fetch(`/service/api/workspace/files/${encodeURIComponent(filename)}/preview`, {
         method: 'GET',
       });
 
@@ -136,7 +136,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
     }
 
     try {
-      const response = await fetch(buildApiUrl(`/api/workspace/files/${encodeURIComponent(filename)}`), {
+      const response = await fetch(`/service/api/workspace/files/${encodeURIComponent(filename)}`, {
         method: 'DELETE',
       });
 
@@ -166,7 +166,7 @@ const FileManager = ({ isOpen, onClose, sessionId }) => {
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch(buildApiUrl('/api/workspace/files/upload'), {
+        const response = await fetch('/service/api/workspace/files/upload', {
           method: 'POST',
           body: formData,
         });

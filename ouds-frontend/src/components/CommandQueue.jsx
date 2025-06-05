@@ -20,7 +20,7 @@ const CommandQueue = ({ sessionId, isVisible }) => {
     
     try {
       setLoading(true);
-      const response = await fetch(buildApiUrl(`/api/sessions/${sessionId}/queue`));
+      const response = await fetch(`/service/api/sessions/${sessionId}/queue`);
       
       if (response.ok) {
         const data = await response.json();

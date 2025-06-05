@@ -112,7 +112,7 @@ function App() {
     try {
       console.log('🎯 Starting streaming request...');
       
-      const response = await fetch(buildApiUrl('/api/chat/stream'), {
+      const response = await fetch('/service/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
