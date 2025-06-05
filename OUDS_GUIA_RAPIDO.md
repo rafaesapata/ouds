@@ -169,5 +169,5 @@ Para problemas ou dúvidas:
 
 ---
 
-**OUDS v1.0.12** - Sistema de IA conversacional baseado no OpenManus
+**OUDS v1.0.13** - Sistema de IA conversacional baseado no OpenManus
 
