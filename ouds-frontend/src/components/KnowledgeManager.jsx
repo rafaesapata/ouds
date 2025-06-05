@@ -36,7 +36,7 @@ const KnowledgeManager = ({ workspaceId = 'default' }) => {
 
   const loadWorkspaceStats = async () => {
     try {
-      const response = await fetch(`/api/knowledge/workspace/${workspaceId}/stats`);
+      const response = await fetch(`/service/api/knowledge/workspace/${workspaceId}/stats`);
       const data = await response.json();
       if (data.success) {
         setKnowledgeStats(data.stats);
@@ -48,7 +48,7 @@ const KnowledgeManager = ({ workspaceId = 'default' }) => {
 
   const loadLlmStats = async () => {
     try {
-      const response = await fetch('/api/llm/stats');
+      const response = await fetch('/service/api/llm/stats');
       const data = await response.json();
       if (data.success) {
         setLlmStats(data.stats);
@@ -60,7 +60,7 @@ const KnowledgeManager = ({ workspaceId = 'default' }) => {
 
   const loadInsights = async () => {
     try {
-      const response = await fetch(`/api/evolution/workspace/${workspaceId}/insights`);
+      const response = await fetch(`/service/api/evolution/workspace/${workspaceId}/insights`);
       const data = await response.json();
       if (data.success) {
         setInsights(data.insights);
@@ -75,7 +75,7 @@ const KnowledgeManager = ({ workspaceId = 'default' }) => {
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/knowledge/workspace/${workspaceId}/search?q=${encodeURIComponent(searchQuery)}&limit=10`);
+      const response = await fetch(`/service/api/knowledge/workspace/${workspaceId}/search?q=${encodeURIComponent(searchQuery)}&limit=10`);
       const data = await response.json();
       if (data.success) {
         setSearchResults(data.results);
@@ -89,7 +89,7 @@ const KnowledgeManager = ({ workspaceId = 'default' }) => {
 
   const addKnowledge = async (content, type = 'fact', tags = []) => {
     try {
-      const response = await fetch(`/api/knowledge/workspace/${workspaceId}/add`, {
+      const response = await fetch(`/service/api/knowledge/workspace/${workspaceId}/add`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,7 +115,7 @@ const KnowledgeManager = ({ workspaceId = 'default' }) => {
 
   const cleanupWorkspace = async () => {
     try {
-      const response = await fetch(`/api/knowledge/workspace/${workspaceId}/cleanup`, {
+      const response = await fetch(`/service/api/knowledge/workspace/${workspaceId}/cleanup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
