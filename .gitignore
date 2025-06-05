@@ -10,7 +10,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+lib/python*/
 lib64/
 parts/
 sdist/
@@ -140,4 +140,10 @@ workspace/
 # Local configuration
 config/local.yaml
 config/local.json
+
+
+# OpenManus configuration files with API keys
+OpenManus/config/config.toml
+config/config.toml
+*.toml
 

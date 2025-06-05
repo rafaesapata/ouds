@@ -102,12 +102,21 @@ function App() {
 
     // Add debug task to show progress
     console.log('🎯 Starting new request, should show TaskProgress...');
+    console.log('📡 Request details:', {
+      message: currentMessage,
+      sessionId: sessionId,
+      endpoint: API_ENDPOINTS.CHAT,
+      url: buildApiUrl(API_ENDPOINTS.CHAT)
+    });
 
     try {
       // Add timeout to the request
       const timeoutId = setTimeout(() => {
+        console.log('⏰ Request timeout after 60 seconds');
         controller.abort();
       }, 60000); // 60 seconds timeout
+
+      console.log('📤 Sending request to:', buildApiUrl(API_ENDPOINTS.CHAT));
 
       // Use the new API system with abort signal
       const data = await apiRequest(API_ENDPOINTS.CHAT, {
@@ -120,18 +129,21 @@ function App() {
       });
       
       clearTimeout(timeoutId);
+      console.log('📥 Received response:', data);
       
-      if (!sessionId) {
+      if (!sessionId && data.session_id) {
+        console.log('🆔 Setting session ID:', data.session_id);
         setSessionId(data.session_id)
       }
 
       const assistantMessage = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: data.response,
-        timestamp: data.timestamp
+        content: data.response || data.message || 'Resposta vazia do backend',
+        timestamp: data.timestamp || new Date().toISOString()
       }
 
+      console.log('💬 Adding assistant message:', assistantMessage);
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -140,6 +152,11 @@ function App() {
       }
       
       console.error('❌ Error sending message:', error)
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
 
       const errorMessage = {
         id: Date.now() + 1,

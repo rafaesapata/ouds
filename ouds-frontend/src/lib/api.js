@@ -62,11 +62,28 @@ export async function apiRequest(endpoint, options = {}) {
 
   try {
     console.log(`🌐 API Request: ${defaultOptions.method} ${url}`);
+    console.log('📋 Request details:', {
+      endpoint,
+      url,
+      method: defaultOptions.method,
+      headers: defaultOptions.headers,
+      hasBody: !!defaultOptions.body,
+      bodyPreview: defaultOptions.body ? defaultOptions.body.substring(0, 100) + '...' : null
+    });
     
     const response = await fetch(url, defaultOptions);
     
+    console.log('📡 Response received:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      url: response.url
+    });
+    
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ Response error body:', errorText);
+      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
     }
     
     const data = await response.json();
@@ -75,6 +92,12 @@ export async function apiRequest(endpoint, options = {}) {
     return data;
   } catch (error) {
     console.error(`❌ API Error: ${error.message}`);
+    console.error('❌ Full error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      url: url
+    });
     throw error;
   }
 }
