@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Input } from '@/components/ui/input.jsx'
 import { ScrollArea } from '@/components/ui/scroll-area.jsx'
@@ -15,6 +15,8 @@ function App() {
   const [sessionId, setSessionId] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const [abortController, setAbortController] = useState(null)
+  const [streamingMessage, setStreamingMessage] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
   const messagesEndRef = useRef(null)
   
   // Use WebSocket hook for real-time task progress
@@ -26,7 +28,7 @@ function App() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, streamingMessage])
 
   useEffect(() => {
     // Test API connection using the new API system
@@ -64,6 +66,8 @@ function App() {
       abortController.abort();
       setAbortController(null);
       setIsLoading(false);
+      setIsStreaming(false);
+      setStreamingMessage('');
       resetTasks();
       
       // Add cancellation message
@@ -75,6 +79,124 @@ function App() {
         isError: true
       };
       setMessages(prev => [...prev, cancelMessage]);
+    }
+  };
+
+  const sendMessageWithStreaming = async () => {
+    if (!inputMessage.trim() || isLoading) return
+
+    const userMessage = {
+      id: Date.now(),
+      role: 'user',
+      content: inputMessage,
+      timestamp: new Date().toISOString()
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    const currentMessage = inputMessage;
+    setInputMessage('')
+    setIsLoading(true)
+    setIsStreaming(true)
+    setStreamingMessage('')
+
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
+
+    // Reset tasks for new request
+    resetTasks();
+
+    try {
+      console.log('🎯 Starting streaming request...');
+      
+      const response = await fetch(buildApiUrl('/api/chat/stream'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: currentMessage,
+          session_id: sessionId
+        }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              console.log('📡 Received streaming data:', data);
+              
+              if (data.type === 'progress') {
+                // Task progress updates are handled by WebSocket
+                console.log('📋 Task progress update received');
+              } else if (data.type === 'response') {
+                if (data.partial) {
+                  setStreamingMessage(data.content);
+                } else {
+                  // Final response
+                  const assistantMessage = {
+                    id: Date.now(),
+                    role: 'assistant',
+                    content: data.content,
+                    timestamp: new Date().toISOString()
+                  };
+                  setMessages(prev => [...prev, assistantMessage]);
+                  setStreamingMessage('');
+                }
+              } else if (data.type === 'complete') {
+                console.log('✅ Streaming completed');
+                setSessionId(data.session_id);
+                break;
+              } else if (data.type === 'error') {
+                throw new Error(data.message);
+              }
+            } catch (parseError) {
+              console.error('❌ Error parsing streaming data:', parseError);
+            }
+          }
+        }
+      }
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('🛑 Request was cancelled');
+        return;
+      }
+      
+      console.error('❌ Streaming error:', error);
+      
+      const errorMessage = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `Erro na comunicação: ${error.message}`,
+        timestamp: new Date().toISOString(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+      setIsStreaming(false);
+      setStreamingMessage('');
+      setAbortController(null);
     }
   };
 
@@ -170,18 +292,16 @@ function App() {
       setIsLoading(false)
       setAbortController(null)
     }
-  }
-
-  const handleKeyPress = (e) => {
+  }  const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      sendMessage()
+      sendMessageWithStreaming()
     }
   }
 
-  const clearChat = () => {
-    setMessages([])
-    setSessionId(null)
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    sendMessageWithStreaming()
   }
 
   return (
@@ -277,6 +397,33 @@ function App() {
                         : 'text-gray-700 dark:text-gray-300'
                     }`}>
                       <p className="whitespace-pre-wrap">{message.content}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Streaming message */}
+              {isStreaming && streamingMessage && (
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
+                      <Bot className="h-4 w-4 text-white" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        OUDS
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        digitando...
+                      </span>
+                    </div>
+                    <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
+                      <p className="whitespace-pre-wrap">
+                        {streamingMessage}
+                        <span className="animate-pulse">|</span>
+                      </p>
                     </div>
                   </div>
                 </div>
