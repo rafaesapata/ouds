@@ -2,46 +2,41 @@
 OUDS - API Server
 ================
 
-Servidor API para o sistema OUDS (Oráculo UDS).
+Servidor API para o sistema OUDS.
 """
 
 import asyncio
 import json
-import logging
-import mimetypes
 import os
-import shutil
-import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
-
-logger = logging.getLogger(__name__)
+# Import config
+from app.settings import settings
 
 # Import agent module
 from app.schema import Message, Role
 from app.agent.session import Command, CommandQueueResponse, SessionManager
 
+# Import logger
+from app.logger import logger
+
 # Create FastAPI app
 app = FastAPI(
-    title="OUDS API Server",
-    description="API Server for OUDS (Oráculo UDS)",
-    version="1.2.0",
+    title="OUDS API",
+    description="API para o sistema OUDS",
+    version="0.1.0",
 )
 
 # Add CORS middleware
@@ -53,151 +48,104 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Models for API requests and responses
-class ChatRequest(BaseModel):
-    message: str
-    session_id: str
-    workspace_id: Optional[str] = "default"
-
-class ChatResponse(BaseModel):
-    response: str
-    session_id: str
-    timestamp: datetime
-    status: str
-
-class FileInfo(BaseModel):
-    name: str
-    size: int
-    modified: datetime
-    type: str
-    path: str
-
-class FileListResponse(BaseModel):
-    files: List[FileInfo]
-    total_count: int
-    workspace_path: str
-
-class UploadResponse(BaseModel):
-    filename: str
-    size: int
-    type: str
-    path: str
-
-class WorkspaceInfo(BaseModel):
-    workspace_id: str
-    created_at: datetime
-    last_activity: datetime
-    session_count: int
-    status: str
-
-class WorkspaceListResponse(BaseModel):
-    workspaces: List[WorkspaceInfo]
-    total_count: int
-
-class SessionInfo(BaseModel):
-    session_id: str
-    created_at: datetime
-    last_activity: datetime
-    message_count: int
-    status: str
-
-class SessionListResponse(BaseModel):
-    sessions: List[SessionInfo]
-    total_count: int
-    workspace_id: str
-
-# Initialize session manager
+# Create session manager
 session_manager = SessionManager()
 
-# WebSocket connection manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
-
-    async def connect(self, websocket: WebSocket, session_id: str):
-        await websocket.accept()
-        self.active_connections[session_id] = websocket
-
-    def disconnect(self, session_id: str):
-        if session_id in self.active_connections:
-            del self.active_connections[session_id]
-
-    async def send_message(self, message: str, session_id: str):
-        if session_id in self.active_connections:
-            await self.active_connections[session_id].send_text(message)
+# Create templates
+templates = Jinja2Templates(directory="templates")
 
 
-manager = ConnectionManager()
+# Models
+class ChatRequest(BaseModel):
+    """Chat request model"""
+
+    message: str
+    session_id: Optional[str] = None
+    workspace_id: Optional[str] = "default"
 
 
+class ChatResponse(BaseModel):
+    """Chat response model"""
+
+    message: str
+    session_id: str
+    workspace_id: str = "default"
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class CommandRequest(BaseModel):
+    """Command request model"""
+
+    message: str
+    priority: int = 0
+
+
+class SessionResponse(BaseModel):
+    """Session response model"""
+
+    session_id: str
+    workspace_id: str = "default"
+    created_at: datetime
+    last_activity: datetime
+    message_count: int = 0
+
+
+class WorkspaceResponse(BaseModel):
+    """Workspace response model"""
+
+    workspace_id: str
+    created_at: datetime
+    last_activity: datetime
+    session_count: int = 0
+
+
+# Routes
 @app.get("/")
 async def root():
-    """Root endpoint with basic info."""
-    return {
-        "message": "OUDS - Oráculo UDS API Server",
-        "version": "1.2.0",
-        "description": "Sistema de IA conversacional baseado no OpenManus com suporte a workspaces",
-        "endpoints": {
-            "chat": "/api/chat",
-            "sessions": "/api/sessions",
-            "websocket": "/ws/{session_id}",
-            "workspace": "/workspace/{workspace_id}"
-        }
-    }
+    """Root endpoint"""
+    return {"message": "OUDS API is running"}
 
-# Workspace route handler
+
 @app.get("/workspace/{workspace_id}")
-async def workspace_handler(workspace_id: str):
-    """Handle workspace access - create if not exists, load if exists."""
+async def get_workspace(workspace_id: str):
+    """Get workspace info"""
     # Ensure workspace exists
     session_manager.ensure_workspace(workspace_id)
     
+    # Get workspace info
+    workspace = session_manager.workspaces[workspace_id]
+    
     # Return workspace info
-    workspace_info = session_manager.workspaces[workspace_id]
-    return {
-        "workspace_id": workspace_id,
-        "status": "ready",
-        "created_at": workspace_info["created_at"].isoformat(),
-        "last_activity": workspace_info["last_activity"].isoformat(),
-        "session_count": workspace_info["session_count"],
-        "message": f"Workspace '{workspace_id}' está pronto para uso"
-    }
+    return WorkspaceResponse(
+        workspace_id=workspace_id,
+        created_at=workspace["created_at"],
+        last_activity=workspace["last_activity"],
+        session_count=workspace["session_count"]
+    )
 
 
-@app.post("/api/chat", response_model=ChatResponse)
+@app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    """Main chat endpoint for processing user messages with queue support."""
+    """Chat endpoint for processing user messages"""
     try:
-        # Extract workspace from request or use default
-        workspace_id = getattr(request, 'workspace_id', 'default')
+        # Process chat command
+        response = await process_chat_command(
+            session_id=request.session_id or str(uuid.uuid4()),
+            message=request.message,
+            workspace_id=request.workspace_id or "default"
+        )
         
-        # Get or create session
-        session_id = await session_manager.get_or_create_session(request.session_id, workspace_id)
-        
-        # Check if a command is currently being processed
-        if session_manager.is_processing_command(session_id, workspace_id):
-            # Add to queue with normal priority
-            command = session_manager.add_command_to_queue(session_id, request.message, priority=1, workspace_id=workspace_id)
-            
-            return ChatResponse(
-                response=f"Comando adicionado à fila. Posição: {len(session_manager.command_queues[workspace_id][session_id])}. Aguarde a conclusão do comando atual.",
-                session_id=session_id,
-                timestamp=datetime.now(),
-                status="queued"
-            )
-        
-        # Process immediately if no command is running
-        return await process_chat_command(session_id, request.message, workspace_id)
+        # Return response
+        return response
         
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-# Novo endpoint para streaming de chat
 @app.post("/chat/stream")
 async def chat_stream_endpoint(request: Request):
-    """Streaming chat endpoint for processing user messages with SSE."""
+    """Streaming chat endpoint for processing user messages with SSE"""
     try:
         # Parse request body
         body = await request.json()
@@ -237,6 +185,7 @@ async def process_chat_stream(session_id: str, message: str, workspace_id: str =
         logger.info(f"Processing streaming message in session {session_id} workspace {workspace_id}: {message}")
         
         # Add user message to agent memory
+        from app.schema import Message, Role
         user_message = Message(
             role=Role.USER,
             content=message
@@ -289,6 +238,7 @@ async def process_chat_command(session_id: str, message: str, workspace_id: str 
         logger.info(f"Processing message in session {session_id} workspace {workspace_id}: {message}")
         
         # Add user message to agent memory
+        from app.schema import Message, Role
         user_message = Message(
             role=Role.USER,
             content=message
@@ -305,311 +255,423 @@ async def process_chat_command(session_id: str, message: str, workspace_id: str 
             # Add context to system message
             agent.system_prompt = f"{agent.system_prompt}\n\nContexto relevante:\n{context}"
         
-        response = await agent.run()
+        # Run agent
+        response_text = await agent.run()
         
-        # Update activity
-        session_manager.update_activity(session_id, workspace_id)
+        # Update session info
+        if workspace_id in session_manager.sessions and session_id in session_manager.sessions[workspace_id]:
+            session_manager.sessions[workspace_id][session_id]["message_count"] += 1
         
+        # Return response
         return ChatResponse(
-            response=response,
+            message=response_text,
             session_id=session_id,
-            timestamp=datetime.now(),
-            status="completed"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error processing chat command: {e}")
-        return ChatResponse(
-            response=f"Erro ao processar comando: {str(e)}",
-            session_id=session_id,
-            timestamp=datetime.now(),
-            status="error"
-        )
-
-
-@app.get("/api/sessions")
-async def list_sessions(workspace_id: str = "default"):
-    """List all sessions in a workspace."""
-    try:
-        # Ensure workspace exists
-        session_manager.ensure_workspace(workspace_id)
-        
-        # Get sessions for this workspace
-        sessions = []
-        for session_id, session_info in session_manager.sessions.get(workspace_id, {}).items():
-            sessions.append(SessionInfo(
-                session_id=session_id,
-                created_at=session_info["created_at"],
-                last_activity=session_info["last_activity"],
-                message_count=session_info["message_count"],
-                status="active"
-            ))
-        
-        return SessionListResponse(
-            sessions=sessions,
-            total_count=len(sessions),
             workspace_id=workspace_id
         )
         
     except Exception as e:
-        logger.error(f"Error listing sessions: {e}")
-        raise HTTPException(status_code=500, detail=f"Error listing sessions: {str(e)}")
+        logger.error(f"Error in chat command: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-@app.delete("/api/sessions/{session_id}")
-async def delete_session(session_id: str, workspace_id: str = "default"):
-    """Delete a session."""
+@app.get("/api/sessions")
+async def list_sessions():
+    """List all sessions"""
     try:
-        # Check if session exists
-        if workspace_id not in session_manager.sessions or session_id not in session_manager.sessions[workspace_id]:
-            raise HTTPException(status_code=404, detail=f"Session {session_id} not found in workspace {workspace_id}")
+        # Get all sessions
+        all_sessions = []
+        for workspace_id, sessions in session_manager.sessions.items():
+            for session_id, session in sessions.items():
+                all_sessions.append(
+                    SessionResponse(
+                        session_id=session_id,
+                        workspace_id=workspace_id,
+                        created_at=session["created_at"],
+                        last_activity=session["last_activity"],
+                        message_count=session["message_count"]
+                    )
+                )
         
-        # Delete session
-        del session_manager.sessions[workspace_id][session_id]
-        if workspace_id in session_manager.agents and session_id in session_manager.agents[workspace_id]:
-            del session_manager.agents[workspace_id][session_id]
-        if workspace_id in session_manager.command_queues and session_id in session_manager.command_queues[workspace_id]:
-            del session_manager.command_queues[workspace_id][session_id]
-        if workspace_id in session_manager.processing_commands and session_id in session_manager.processing_commands[workspace_id]:
-            del session_manager.processing_commands[workspace_id][session_id]
+        # Return sessions
+        return all_sessions
         
-        # Update session count
-        session_manager.workspaces[workspace_id]["session_count"] = len(session_manager.sessions[workspace_id])
+    except Exception as e:
+        logger.error(f"Error in list_sessions: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session(session_id: str):
+    """Get session info"""
+    try:
+        # Find session
+        for workspace_id, sessions in session_manager.sessions.items():
+            if session_id in sessions:
+                session = sessions[session_id]
+                return SessionResponse(
+                    session_id=session_id,
+                    workspace_id=workspace_id,
+                    created_at=session["created_at"],
+                    last_activity=session["last_activity"],
+                    message_count=session["message_count"]
+                )
         
-        return {"message": f"Session {session_id} deleted from workspace {workspace_id}"}
+        # Session not found
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting session: {e}")
-        raise HTTPException(status_code=500, detail=f"Error deleting session: {str(e)}")
+        logger.error(f"Error in get_session: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-@app.get("/api/sessions/{session_id}/queue")
-async def get_session_queue(session_id: str, workspace_id: str = "default"):
-    """Get the command queue for a session."""
+@app.post("/api/sessions/{session_id}/queue")
+async def queue_command(session_id: str, command: CommandRequest):
+    """Queue a command for processing"""
     try:
-        # Check if session exists
-        if workspace_id not in session_manager.sessions or session_id not in session_manager.sessions[workspace_id]:
-            raise HTTPException(status_code=404, detail=f"Session {session_id} not found in workspace {workspace_id}")
+        # Find session
+        for workspace_id, sessions in session_manager.sessions.items():
+            if session_id in sessions:
+                # Create command
+                cmd = Command(
+                    message=command.message,
+                    priority=command.priority
+                )
+                
+                # Add command to queue
+                if session_id not in session_manager.command_queues[workspace_id]:
+                    session_manager.command_queues[workspace_id][session_id] = []
+                
+                session_manager.command_queues[workspace_id][session_id].append(cmd)
+                
+                # Sort queue by priority
+                session_manager.command_queues[workspace_id][session_id].sort(
+                    key=lambda x: x.priority, reverse=True
+                )
+                
+                # Return queue status
+                return CommandQueueResponse(
+                    session_id=session_id,
+                    processing=session_manager.processing_commands[workspace_id].get(session_id),
+                    queue=session_manager.command_queues[workspace_id][session_id],
+                    queue_size=len(session_manager.command_queues[workspace_id][session_id])
+                )
         
-        # Get queue status
-        queue_status = session_manager.get_command_queue_status(session_id, workspace_id)
-        
-        return queue_status
+        # Session not found
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting session queue: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting session queue: {str(e)}")
+        logger.error(f"Error in queue_command: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.get("/api/workspace/files")
 async def list_workspace_files(session_id: Optional[str] = None):
-    """List files in the workspace."""
+    """List files in workspace"""
     try:
-        # Get workspace_id from session or use default
+        # Get workspace ID from session
         workspace_id = "default"
         if session_id:
-            # Find workspace_id for this session
             for ws_id, sessions in session_manager.sessions.items():
                 if session_id in sessions:
                     workspace_id = ws_id
                     break
         
-        # Ensure workspace exists
-        session_manager.ensure_workspace(workspace_id)
+        # Get workspace directory
+        workspace_dir = Path(settings.workspace_dir) / workspace_id / "files"
         
-        # Get workspace path
-        workspace_path = Path(f"workspace/{workspace_id}/files")
-        workspace_path.mkdir(parents=True, exist_ok=True)
+        # Create directory if not exists
+        workspace_dir.mkdir(parents=True, exist_ok=True)
         
         # List files
         files = []
-        for file_path in workspace_path.glob("*"):
+        for file_path in workspace_dir.glob("*"):
             if file_path.is_file():
-                files.append(FileInfo(
-                    name=file_path.name,
-                    size=file_path.stat().st_size,
-                    modified=datetime.fromtimestamp(file_path.stat().st_mtime),
-                    type=mimetypes.guess_type(str(file_path))[0] or "application/octet-stream",
-                    path=str(file_path)
-                ))
+                files.append({
+                    "name": file_path.name,
+                    "size": file_path.stat().st_size,
+                    "modified": datetime.fromtimestamp(file_path.stat().st_mtime).isoformat(),
+                    "type": file_path.suffix[1:] if file_path.suffix else "unknown"
+                })
         
-        return FileListResponse(
-            files=files,
-            total_count=len(files),
-            workspace_path=str(workspace_path)
-        )
+        # Return files
+        return {"files": files, "workspace_id": workspace_id}
         
     except Exception as e:
-        logger.error(f"Error listing workspace files: {e}")
-        raise HTTPException(status_code=500, detail=f"Error listing workspace files: {str(e)}")
+        logger.error(f"Error in list_workspace_files: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.get("/api/workspace/files/{filename}/download")
 async def download_workspace_file(filename: str, session_id: Optional[str] = None):
-    """Download a file from the workspace."""
+    """Download file from workspace"""
     try:
-        # Get workspace_id from session or use default
+        # Get workspace ID from session
         workspace_id = "default"
         if session_id:
-            # Find workspace_id for this session
             for ws_id, sessions in session_manager.sessions.items():
                 if session_id in sessions:
                     workspace_id = ws_id
                     break
         
-        # Ensure workspace exists
-        session_manager.ensure_workspace(workspace_id)
-        
         # Get file path
-        file_path = Path(f"workspace/{workspace_id}/files/{filename}")
+        file_path = Path(settings.workspace_dir) / workspace_id / "files" / filename
         
         # Check if file exists
         if not file_path.exists() or not file_path.is_file():
-            raise HTTPException(status_code=404, detail=f"File {filename} not found in workspace {workspace_id}")
+            raise HTTPException(status_code=404, detail=f"File {filename} not found")
         
         # Return file
         return FileResponse(
             path=str(file_path),
-            filename=filename
+            filename=filename,
+            media_type="application/octet-stream"
         )
-    
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error downloading file {filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
+        logger.error(f"Error in download_workspace_file: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.get("/api/workspace/files/{filename}/preview")
 async def preview_workspace_file(filename: str, session_id: Optional[str] = None):
-    """Preview a text file from the workspace."""
+    """Preview file from workspace"""
     try:
-        # Get workspace_id from session or use default
+        # Get workspace ID from session
         workspace_id = "default"
         if session_id:
-            # Find workspace_id for this session
             for ws_id, sessions in session_manager.sessions.items():
                 if session_id in sessions:
                     workspace_id = ws_id
                     break
         
-        # Ensure workspace exists
-        session_manager.ensure_workspace(workspace_id)
-        
         # Get file path
-        file_path = Path(f"workspace/{workspace_id}/files/{filename}")
+        file_path = Path(settings.workspace_dir) / workspace_id / "files" / filename
         
         # Check if file exists
         if not file_path.exists() or not file_path.is_file():
-            raise HTTPException(status_code=404, detail=f"File {filename} not found in workspace {workspace_id}")
+            raise HTTPException(status_code=404, detail=f"File {filename} not found")
         
-        # Check if file is text
-        media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-        if not media_type.startswith("text/") and media_type != "application/json":
-            raise HTTPException(status_code=400, detail=f"File {filename} is not a text file")
+        # Return file with appropriate content type
+        content_type = "application/octet-stream"
         
-        # Read file content
-        content = file_path.read_text(encoding="utf-8")
+        # Determine content type based on file extension
+        if filename.lower().endswith((".jpg", ".jpeg")):
+            content_type = "image/jpeg"
+        elif filename.lower().endswith(".png"):
+            content_type = "image/png"
+        elif filename.lower().endswith(".gif"):
+            content_type = "image/gif"
+        elif filename.lower().endswith(".svg"):
+            content_type = "image/svg+xml"
+        elif filename.lower().endswith(".pdf"):
+            content_type = "application/pdf"
+        elif filename.lower().endswith((".txt", ".md", ".py", ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".json")):
+            content_type = "text/plain"
         
-        # Return content
-        return {"filename": filename, "content": content, "media_type": media_type}
+        return FileResponse(
+            path=str(file_path),
+            media_type=content_type
+        )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error previewing file {filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error previewing file: {str(e)}")
+        logger.error(f"Error in preview_workspace_file: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.delete("/api/workspace/files/{filename}")
 async def delete_workspace_file(filename: str, session_id: Optional[str] = None):
-    """Delete a file from the workspace."""
+    """Delete file from workspace"""
     try:
-        # Get workspace_id from session or use default
+        # Get workspace ID from session
         workspace_id = "default"
         if session_id:
-            # Find workspace_id for this session
             for ws_id, sessions in session_manager.sessions.items():
                 if session_id in sessions:
                     workspace_id = ws_id
                     break
         
-        # Ensure workspace exists
-        session_manager.ensure_workspace(workspace_id)
-        
         # Get file path
-        file_path = Path(f"workspace/{workspace_id}/files/{filename}")
+        file_path = Path(settings.workspace_dir) / workspace_id / "files" / filename
         
         # Check if file exists
         if not file_path.exists() or not file_path.is_file():
-            raise HTTPException(status_code=404, detail=f"File {filename} not found in workspace {workspace_id}")
+            raise HTTPException(status_code=404, detail=f"File {filename} not found")
         
         # Delete file
         file_path.unlink()
         
-        return {"message": f"File {filename} deleted from workspace {workspace_id}"}
+        # Return success
+        return {"message": f"File {filename} deleted"}
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting file {filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
+        logger.error(f"Error in delete_workspace_file: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.post("/api/workspace/files/upload")
 async def upload_workspace_file(
     file: UploadFile = File(...),
-    session_id: str = Form(...),
+    session_id: Optional[str] = Form(None)
 ):
-    """Upload a file to the workspace."""
+    """Upload file to workspace"""
     try:
-        # Get workspace_id from session or use default
+        # Get workspace ID from session
         workspace_id = "default"
-        for ws_id, sessions in session_manager.sessions.items():
-            if session_id in sessions:
-                workspace_id = ws_id
-                break
+        if session_id:
+            for ws_id, sessions in session_manager.sessions.items():
+                if session_id in sessions:
+                    workspace_id = ws_id
+                    break
         
-        # Ensure workspace exists
-        session_manager.ensure_workspace(workspace_id)
+        # Get workspace directory
+        workspace_dir = Path(settings.workspace_dir) / workspace_id / "files"
         
-        # Get workspace path
-        workspace_path = Path(f"workspace/{workspace_id}/files")
-        workspace_path.mkdir(parents=True, exist_ok=True)
+        # Create directory if not exists
+        workspace_dir.mkdir(parents=True, exist_ok=True)
         
         # Save file
-        file_path = workspace_path / file.filename
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+        file_path = workspace_dir / file.filename
         
-        return UploadResponse(
-            filename=file.filename,
-            size=file_path.stat().st_size,
-            type=mimetypes.guess_type(str(file_path))[0] or "application/octet-stream",
-            path=str(file_path)
-        )
+        # Write file
+        with open(file_path, "wb") as f:
+            f.write(await file.read())
+        
+        # Return success
+        return {
+            "message": f"File {file.filename} uploaded",
+            "filename": file.filename,
+            "size": file_path.stat().st_size,
+            "workspace_id": workspace_id
+        }
         
     except Exception as e:
-        logger.error(f"Error uploading file: {e}")
-        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+        logger.error(f"Error in upload_workspace_file: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    """WebSocket endpoint for real-time communication."""
-    await manager.connect(websocket, session_id)
+    """WebSocket endpoint for real-time communication"""
+    await websocket.accept()
+    
     try:
+        # Get or create session
+        workspace_id = "default"  # Default workspace
+        session_id = await session_manager.get_or_create_session(session_id, workspace_id)
+        
+        # Send welcome message
+        await websocket.send_json({
+            "type": "system",
+            "message": f"Connected to session {session_id}"
+        })
+        
+        # Process messages
         while True:
+            # Receive message
             data = await websocket.receive_text()
-            await websocket.send_text(f"Message received: {data}")
+            
+            # Parse message
+            try:
+                message = json.loads(data)
+                
+                # Process message
+                if message.get("type") == "chat":
+                    # Process chat message
+                    response = await process_chat_command(
+                        session_id=session_id,
+                        message=message.get("message", ""),
+                        workspace_id=workspace_id
+                    )
+                    
+                    # Send response
+                    await websocket.send_json({
+                        "type": "chat",
+                        "message": response.message,
+                        "session_id": response.session_id,
+                        "workspace_id": response.workspace_id,
+                        "timestamp": response.timestamp.isoformat()
+                    })
+                
+                elif message.get("type") == "command":
+                    # Process command
+                    cmd = Command(
+                        message=message.get("message", ""),
+                        priority=message.get("priority", 0)
+                    )
+                    
+                    # Add command to queue
+                    if session_id not in session_manager.command_queues[workspace_id]:
+                        session_manager.command_queues[workspace_id][session_id] = []
+                    
+                    session_manager.command_queues[workspace_id][session_id].append(cmd)
+                    
+                    # Sort queue by priority
+                    session_manager.command_queues[workspace_id][session_id].sort(
+                        key=lambda x: x.priority, reverse=True
+                    )
+                    
+                    # Send queue status
+                    await websocket.send_json({
+                        "type": "queue",
+                        "session_id": session_id,
+                        "processing": session_manager.processing_commands[workspace_id].get(session_id),
+                        "queue": session_manager.command_queues[workspace_id][session_id],
+                        "queue_size": len(session_manager.command_queues[workspace_id][session_id])
+                    })
+                
+                else:
+                    # Unknown message type
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"Unknown message type: {message.get('type')}"
+                    })
+                
+            except json.JSONDecodeError:
+                # Invalid JSON
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Invalid JSON"
+                })
+            
+            except Exception as e:
+                # Error processing message
+                logger.error(f"Error processing WebSocket message: {e}")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Error: {str(e)}"
+                })
+    
     except WebSocketDisconnect:
-        manager.disconnect(session_id)
+        # Client disconnected
+        logger.info(f"WebSocket client disconnected: {session_id}")
+    
+    except Exception as e:
+        # Error in WebSocket connection
+        logger.error(f"WebSocket error: {e}")
+        await websocket.close(code=1011, reason=f"Internal server error: {str(e)}")
 
 
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# Run server
 if __name__ == "__main__":
-    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "api_server:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.reload,
+        log_level=settings.log_level.lower(),
+    )
 

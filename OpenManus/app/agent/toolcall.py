@@ -55,76 +55,94 @@ class ToolCallAgent(ReActAgent):
                 tool_choice=self.tool_choices,
                 base64_image=self._current_base64_image,
             )
-            self._current_base64_image = None  # Reset after use
 
-            # Process response
+            # Add assistant response to messages
+            self.messages += [response]
+
+            # Process tool calls if any
             if response.tool_calls:
                 self.tool_calls = response.tool_calls
-                self.messages.append(response)
                 return True
             else:
-                # No tool calls, just add response to messages
-                self.messages.append(response)
-                return False
+                # No tool calls, check if we're done
+                if response.content and any(
+                    special_name in response.content.lower()
+                    for special_name in self.special_tool_names
+                ):
+                    self.state = AgentState.COMPLETED
+                    return False
+                else:
+                    # Continue with next step
+                    return True
 
         except TokenLimitExceeded as e:
             logger.warning(f"Token limit exceeded: {e}")
-            # Truncate messages to handle token limit
-            self._truncate_messages()
-            return await self.think()  # Retry with truncated messages
+            self.state = AgentState.ERROR
+            return False
+        except Exception as e:
+            logger.error(f"Error in think: {e}")
+            self.state = AgentState.ERROR
+            return False
 
     async def act(self) -> bool:
-        """Execute tool calls from the last response"""
+        """Execute tool calls from the think phase"""
         if not self.tool_calls:
             logger.warning(TOOL_CALL_REQUIRED)
             return False
 
-        for tool_call in self.tool_calls:
-            # Check for special tools
-            if tool_call.function.name in self.special_tool_names:
-                # Handle special tools like termination
-                if tool_call.function.name == Terminate().name:
-                    self.state = AgentState.FINISHED
-                    return False
+        try:
+            # Process each tool call
+            for tool_call in self.tool_calls:
+                # Skip if no function call
+                if not tool_call.function:
+                    continue
 
-            # Execute the tool
-            tool = self.available_tools.get(tool_call.function.name)
-            if not tool:
-                logger.warning(f"Tool {tool_call.function.name} not found")
-                continue
+                # Get tool name and arguments
+                tool_name = tool_call.function.name
+                tool_args = {}
 
-            try:
-                logger.info(f"🔧 Activating tool: '{tool_call.function.name}'...")
-                args = json.loads(tool_call.function.arguments)
-                result = await tool.execute(**args)
-                logger.info(f"🎯 Tool '{tool_call.function.name}' completed its mission!")
+                # Parse arguments if provided
+                if tool_call.function.arguments:
+                    try:
+                        tool_args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        logger.error(
+                            f"Invalid JSON in tool arguments: {tool_call.function.arguments}"
+                        )
+                        continue
+
+                # Check if tool exists
+                if tool_name not in self.available_tools:
+                    logger.warning(f"Tool '{tool_name}' not found")
+                    continue
+
+                # Execute the tool
+                logger.info(f"🔧 Activating tool: '{tool_name}'...")
+                tool = self.available_tools[tool_name]
+                result = await tool.execute(**tool_args)
+
+                # Handle special tools
+                if tool_name in self.special_tool_names:
+                    if tool_name == Terminate().name:
+                        self.state = AgentState.COMPLETED
+                        return False
 
                 # Add tool result to messages
-                tool_result = Message.tool_message(
-                    content=str(result),
-                    tool_call_id=tool_call.id,
-                    name=tool_call.function.name,
-                )
-                self.messages.append(tool_result)
+                self.messages += [
+                    Message.tool_message(
+                        content=f"Observed output of cmd `{tool_name}` executed:\n{result}",
+                        tool_call_id=tool_call.id,
+                    )
+                ]
 
-            except Exception as e:
-                logger.error(f"❌ Error executing tool {tool_call.function.name}: {e}")
-                # Add error message as tool result
-                error_msg = f"Error: {tool_call.function.name} failed: {str(e)}"
-                tool_result = Message.tool_message(
-                    content=error_msg,
-                    tool_call_id=tool_call.id,
-                    name=tool_call.function.name,
-                )
-                self.messages.append(tool_result)
+            # Clear tool calls for next iteration
+            self.tool_calls = []
+            return True
 
-        # Reset tool calls after execution
-        self.tool_calls = []
-        return True
-
-    async def observe(self) -> bool:
-        """Observe the environment after actions (placeholder for subclasses)"""
-        return True
+        except Exception as e:
+            logger.error(f"Error in act: {e}")
+            self.state = AgentState.ERROR
+            return False
 
     async def run(self) -> str:
         """Run the agent until completion or max steps reached"""
@@ -136,28 +154,16 @@ class ToolCallAgent(ReActAgent):
             logger.info(f"Executing step {self.current_step}/{self.max_steps}")
 
             # Think phase
-            thought_result = await self.think()
-            if not thought_result or self.state != AgentState.RUNNING:
+            if not await self.think():
                 break
 
             # Act phase
-            act_result = await self.act()
-            if not act_result or self.state != AgentState.RUNNING:
+            if not await self.act():
                 break
 
-            # Observe phase (optional)
-            if self.max_observe:
-                observe_result = await self.observe()
-                if not observe_result or self.state != AgentState.RUNNING:
-                    break
-
-        # Return the final response
-        if self.messages and self.messages[-1].role == "assistant":
-            return self.messages[-1].content or ""
-        
-        # Find the last assistant message with content
+        # Return final response
         for msg in reversed(self.messages):
-            if msg.role == "assistant" and msg.content:
+            if msg.role == "assistant" and msg.content and not msg.tool_calls:
                 return msg.content
         
         return "Task completed without a final response."
@@ -207,94 +213,37 @@ class ToolCallAgent(ReActAgent):
                     tool_choice=self.tool_choices,
                     base64_image=self._current_base64_image,
                 )
-                self._current_base64_image = None  # Reset after use
 
-                # Process response
+                # Add assistant response to messages
+                self.messages += [response]
+
+                # Process tool calls if any
                 if response.tool_calls:
                     self.tool_calls = response.tool_calls
-                    self.messages.append(response)
+                    
+                    # Act phase
+                    if not await self.act():
+                        break
                 else:
-                    # No tool calls, just add response to messages
-                    self.messages.append(response)
-                    break
-
-            except TokenLimitExceeded as e:
-                logger.warning(f"Token limit exceeded: {e}")
-                # Truncate messages to handle token limit
-                self._truncate_messages()
-                continue
-
-            # Act phase
-            if not self.tool_calls:
-                logger.warning(TOOL_CALL_REQUIRED)
+                    # No tool calls, check if we're done
+                    if response.content and any(
+                        special_name in response.content.lower()
+                        for special_name in self.special_tool_names
+                    ):
+                        self.state = AgentState.COMPLETED
+                        break
+            
+            except Exception as e:
+                logger.error(f"Error in streaming run: {e}")
+                yield {"error": str(e)}
+                self.state = AgentState.ERROR
                 break
 
-            for tool_call in self.tool_calls:
-                # Check for special tools
-                if tool_call.function.name in self.special_tool_names:
-                    # Handle special tools like termination
-                    if tool_call.function.name == Terminate().name:
-                        self.state = AgentState.FINISHED
-                        break
-
-                # Execute the tool
-                tool = self.available_tools.get(tool_call.function.name)
-                if not tool:
-                    logger.warning(f"Tool {tool_call.function.name} not found")
-                    continue
-
-                try:
-                    logger.info(f"🔧 Activating tool: '{tool_call.function.name}'...")
-                    args = json.loads(tool_call.function.arguments)
-                    result = await tool.execute(**args)
-                    logger.info(f"🎯 Tool '{tool_call.function.name}' completed its mission!")
-
-                    # Add tool result to messages
-                    tool_result = Message.tool_message(
-                        content=str(result),
-                        tool_call_id=tool_call.id,
-                        name=tool_call.function.name,
-                    )
-                    self.messages.append(tool_result)
-
-                except Exception as e:
-                    logger.error(f"❌ Error executing tool {tool_call.function.name}: {e}")
-                    # Add error message as tool result
-                    error_msg = f"Error: {tool_call.function.name} failed: {str(e)}"
-                    tool_result = Message.tool_message(
-                        content=error_msg,
-                        tool_call_id=tool_call.id,
-                        name=tool_call.function.name,
-                    )
-                    self.messages.append(tool_result)
-
-            # Reset tool calls after execution
-            self.tool_calls = []
-
-            # Observe phase (optional)
-            if self.max_observe:
-                observe_result = await self.observe()
-                if not observe_result or self.state != AgentState.RUNNING:
-                    break
-
-        # Return the final status
-        yield {"status": "completed", "steps": self.current_step}
-
-    def _truncate_messages(self, keep_last: int = 5) -> None:
-        """Truncate message history to handle token limits"""
-        if len(self.messages) <= keep_last:
-            return
-
-        # Keep system messages and the last few messages
-        system_msgs = [msg for msg in self.messages if msg.role == "system"]
-        last_msgs = self.messages[-keep_last:]
+        # Return final response
+        for msg in reversed(self.messages):
+            if msg.role == "assistant" and msg.content and not msg.tool_calls:
+                yield {"final": msg.content}
+                return
         
-        # Create a truncation message
-        truncation_msg = Message.system_message(
-            "[Message history truncated due to token limit]"
-        )
-        
-        # Rebuild messages with system, truncation notice, and recent messages
-        self.messages = system_msgs + [truncation_msg] + last_msgs
-        logger.info(f"Truncated message history to {len(self.messages)} messages")
+        yield {"final": "Task completed without a final response."}
 
