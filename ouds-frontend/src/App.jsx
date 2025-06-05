@@ -690,74 +690,33 @@ function App() {
               )}
               
               <div ref={messagesEndRef} />
-                      </div>
-                      <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
-                        <ReactMarkdown 
-                          components={{
-                            p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
-                            h1: ({children}) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
-                            h2: ({children}) => <h2 className="text-lg font-semibold mb-2">{children}</h2>,
-                            h3: ({children}) => <h3 className="text-base font-medium mb-1">{children}</h3>,
-                            code: ({children, className}) => {
-                              const isInline = !className;
-                              return isInline ? (
-                                <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">
-                                  {children}
-                                </code>
-                              ) : (
-                                <pre className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg overflow-x-auto">
-                                  <code className="text-sm font-mono">{children}</code>
-                                </pre>
-                              );
-                            },
-                            ul: ({children}) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-                            ol: ({children}) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-                            li: ({children}) => <li className="ml-2">{children}</li>,
-                            blockquote: ({children}) => (
-                              <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic mb-2">
-                                {children}
-                              </blockquote>
-                            ),
-                            strong: ({children}) => <strong className="font-semibold">{children}</strong>,
-                            em: ({children}) => <em className="italic">{children}</em>
-                          }}
-                        >
-                          {streamingMessage}
-                        </ReactMarkdown>
-                        <span className="animate-pulse">|</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {isLoading && !isStreaming && (
-                <div className="flex items-start justify-start">
-                  <div className="flex items-start space-x-3 max-w-[80%]">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center">
-                        <Bot className="h-4 w-4 text-white" />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          Oráculo
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span className="text-sm">Aguardando resposta...</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              <div ref={messagesEndRef} />
             </div>
           )}
         </ScrollArea>
+
+          {/* Loading indicator */}
+          {isLoading && !isStreaming && (
+            <div className="flex items-start justify-start p-4">
+              <div className="flex items-start space-x-3 max-w-[80%]">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center">
+                    <Bot className="h-4 w-4 text-white" />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Oráculo
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm">Aguardando resposta...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         {/* Input Area */}
         <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
