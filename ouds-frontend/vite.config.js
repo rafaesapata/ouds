@@ -31,47 +31,6 @@ export default defineConfig(({ mode }) => {
         port: parseInt(env.VITE_HMR_PORT) || 80,
         host: env.VITE_HMR_HOST || 'localhost',
         clientPort: parseInt(env.VITE_HMR_PORT) || 80
-      },
-      proxy: {
-        // Proxy para API do backend
-        '/api': {
-          target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN !== 'false',
-          secure: env.VITE_PROXY_SECURE === 'true',
-          rewrite: (path) => path.replace(/^\/api/, ''),
-          configure: (proxy, options) => {
-            console.log('🔧 Proxy /api configuration:', {
-              target: options.target,
-              changeOrigin: options.changeOrigin,
-              secure: options.secure
-            });
-            proxy.on('error', (err, req, res) => {
-              console.log('❌ Proxy error:', err.message);
-            });
-            proxy.on('proxyReq', (proxyReq, req, res) => {
-              console.log('🔄 Proxying:', req.method, req.url, '→', options.target + req.url.replace('/api', ''));
-            });
-            proxy.on('proxyRes', (proxyRes, req, res) => {
-              console.log('✅ Proxy response:', proxyRes.statusCode, req.url);
-            });
-          }
-        },
-        // Proxy direto para endpoints específicos do backend
-        '/docs': {
-          target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN !== 'false',
-          secure: env.VITE_PROXY_SECURE === 'true'
-        },
-        '/openapi.json': {
-          target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN !== 'false',
-          secure: env.VITE_PROXY_SECURE === 'true'
-        },
-        '/health': {
-          target: env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000',
-          changeOrigin: env.VITE_PROXY_CHANGE_ORIGIN !== 'false',
-          secure: env.VITE_PROXY_SECURE === 'true'
-        }
       }
     },
     preview: {
@@ -83,11 +42,8 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       // Disponibilizar variáveis de ambiente para o frontend
-      __OUDS_API_URL__: JSON.stringify(env.VITE_API_URL || env.OUDS_API_URL || 'http://localhost:8000'),
-      __OUDS_VERSION__: JSON.stringify(env.OUDS_VERSION || '1.0.23'),
-      __VITE_BACKEND_HOST__: JSON.stringify(env.VITE_BACKEND_HOST || 'localhost'),
-      __VITE_BACKEND_PORT__: JSON.stringify(env.VITE_BACKEND_PORT || '8000'),
-      __VITE_BACKEND_PROTOCOL__: JSON.stringify(env.VITE_BACKEND_PROTOCOL || 'http'),
+      __OUDS_API_URL__: JSON.stringify(env.VITE_API_URL || 'http://localhost:8000'),
+      __OUDS_VERSION__: JSON.stringify(env.OUDS_VERSION || '1.0.24'),
       __VITE_ALLOWED_HOSTS__: JSON.stringify(allowedHosts),
     }
   }
