@@ -21,6 +21,12 @@ pyyaml~=6.0.2
 loguru~=0.7.3
 colorama~=0.4.6
 
+# Web scraping e parsing
+beautifulsoup4~=4.12.0
+
+# Data processing
+pandas>=1.5.0
+
 # MCP Support (Model Context Protocol) - Versão mais recente
 mcp>=1.9.0
 

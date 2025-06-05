@@ -36,7 +36,7 @@ echo ""
 # Testar dependências críticas
 echo "🧪 Testando Dependências Críticas:"
 
-critical_packages=("fastapi" "uvicorn" "pydantic" "openai" "tiktoken" "httpx" "requests" "aiofiles" "loguru" "pyyaml")
+critical_packages=("fastapi" "uvicorn" "pydantic" "openai" "tiktoken" "httpx" "requests" "aiofiles" "loguru" "pyyaml" "tenacity")
 
 for package in "${critical_packages[@]}"; do
     if python3 -c "import $package" 2>/dev/null; then

@@ -56,6 +56,7 @@ critical_packages=(
     "httpx>=0.24.0"
     "aiofiles>=0.8.0"
     "loguru>=0.6.0"
+    "tenacity>=8.0.0"
 )
 
 # Pacotes opcionais
