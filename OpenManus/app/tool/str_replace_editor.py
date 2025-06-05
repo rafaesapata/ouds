@@ -136,6 +136,12 @@ class StrReplaceEditor(BaseTool):
         elif command == "create":
             if file_text is None:
                 raise ToolError("Parameter `file_text` is required for command: create")
+            
+            # Ensure parent directories exist
+            parent_dir = Path(path).parent
+            if not await operator.exists(parent_dir):
+                await operator.create_directory(parent_dir)
+            
             await operator.write_file(path, file_text)
             self._file_history[path].append(file_text)
             result = ToolResult(output=f"File created successfully at: {path}")

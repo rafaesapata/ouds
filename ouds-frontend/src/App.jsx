@@ -124,7 +124,7 @@ function App() {
       id: Date.now(),
       role: 'user',
       content: attachedFile 
-        ? `${inputMessage || 'Arquivo enviado'}\n\n📎 Arquivo anexado: ${attachedFile.name}\n${attachedFile.content ? `Conteúdo do arquivo:\n\`\`\`\n${attachedFile.content}\n\`\`\`` : `Arquivo enviado: ${attachedFile.name} (${(attachedFile.size / 1024).toFixed(1)} KB)`}`
+        ? `${inputMessage || 'Arquivo enviado'}\n\n📎 Arquivo lido: ${attachedFile.name} (${(attachedFile.size / 1024).toFixed(1)} KB)`
         : inputMessage,
       timestamp: new Date().toISOString()
     }
@@ -153,7 +153,7 @@ function App() {
         },
         body: JSON.stringify({
           message: attachedFile 
-            ? `${currentMessage || 'Arquivo enviado'}\n\n📎 Arquivo anexado: ${attachedFile.name}\n${attachedFile.content ? `Conteúdo do arquivo:\n\`\`\`\n${attachedFile.content}\n\`\`\`` : `Arquivo enviado: ${attachedFile.name} (${(attachedFile.size / 1024).toFixed(1)} KB)`}`
+            ? `${currentMessage || 'Arquivo enviado'}\n\n📎 Arquivo lido: ${attachedFile.name} (${(attachedFile.size / 1024).toFixed(1)} KB)`
             : currentMessage,
           session_id: sessionId,
           workspace_id: workspaceId
@@ -389,10 +389,11 @@ function App() {
         size: file.size,
         type: file.type,
         content: fileContent,
-        uploadPath: result.saved_path
+        uploadPath: result.saved_path,
+        isRead: fileContent.length > 0
       });
 
-      console.log('📎 File attached:', file.name);
+      console.log('📎 File attached:', file.name, fileContent.length > 0 ? '(content read)' : '(binary file)');
     } catch (error) {
       console.error('❌ File upload error:', error);
       alert(`Erro ao enviar arquivo: ${error.message}`);
@@ -657,6 +658,13 @@ function App() {
             totalSteps={totalSteps}
           />
           
+          {/* Debug info for TaskProgress */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+              Debug: isLoading={isLoading.toString()}, tasks.length={tasks.length}, sessionId={sessionId}
+            </div>
+          )}
+          
           <CommandQueue 
             sessionId={sessionId}
             isVisible={true}
@@ -670,8 +678,10 @@ function App() {
                   <Paperclip className="h-4 w-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-800">{attachedFile.name}</span>
                   <span className="text-xs text-blue-600">({(attachedFile.size / 1024).toFixed(1)} KB)</span>
-                  {attachedFile.content && (
-                    <span className="text-xs text-green-600">✓ Conteúdo lido</span>
+                  {attachedFile.isRead ? (
+                    <span className="text-xs text-green-600">✓ Arquivo lido</span>
+                  ) : (
+                    <span className="text-xs text-gray-500">📎 Arquivo anexado</span>
                   )}
                 </div>
                 <Button
@@ -701,16 +711,26 @@ function App() {
                 <Paperclip className="h-4 w-4" />
               )}
             </Button>
-            <div className="flex-1">
+            <div className="flex-1 relative">
               <Input
                 value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.length <= 2000) {
+                    setInputMessage(value);
+                  }
+                }}
                 onKeyPress={handleKeyPress}
                 placeholder="Digite sua mensagem..."
                 disabled={isLoading || !isConnected}
-                className="resize-none border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400"
+                className="resize-none border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 pr-16"
                 rows={1}
+                maxLength={2000}
               />
+              {/* Character counter */}
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-400 pointer-events-none">
+                {inputMessage.length}/2000
+              </div>
             </div>
             <Button
               onClick={isLoading ? cancelRequest : sendMessageWithStreaming}
@@ -753,7 +773,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v1.3.0</span>
+              <span>v1.4.0</span>
               {workspaceId && workspaceId !== 'default' && (
                 <>
                   <span>•</span>

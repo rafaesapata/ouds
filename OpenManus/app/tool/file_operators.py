@@ -32,6 +32,10 @@ class FileOperator(Protocol):
         """Check if path exists."""
         ...
 
+    async def create_directory(self, path: PathLike) -> None:
+        """Create directory and all parent directories."""
+        ...
+
     async def run_command(
         self, cmd: str, timeout: Optional[float] = 120.0
     ) -> Tuple[int, str, str]:
@@ -65,6 +69,13 @@ class LocalFileOperator(FileOperator):
     async def exists(self, path: PathLike) -> bool:
         """Check if path exists."""
         return Path(path).exists()
+
+    async def create_directory(self, path: PathLike) -> None:
+        """Create directory and all parent directories."""
+        try:
+            Path(path).mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            raise ToolError(f"Failed to create directory {path}: {str(e)}") from None
 
     async def run_command(
         self, cmd: str, timeout: Optional[float] = 120.0
@@ -135,6 +146,14 @@ class SandboxFileOperator(FileOperator):
             f"test -e {path} && echo 'true' || echo 'false'"
         )
         return result.strip() == "true"
+
+    async def create_directory(self, path: PathLike) -> None:
+        """Create directory and all parent directories in sandbox."""
+        await self._ensure_sandbox_initialized()
+        try:
+            await self.sandbox_client.run_command(f"mkdir -p {path}")
+        except Exception as e:
+            raise ToolError(f"Failed to create directory {path} in sandbox: {str(e)}") from None
 
     async def run_command(
         self, cmd: str, timeout: Optional[float] = 120.0
