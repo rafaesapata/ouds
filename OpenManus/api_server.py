@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from app.agent.manus import Manus
 from app.logger import logger
-from app.schema import Message, ROLE_TYPE
+from app.schema import Message, Role
 
 
 # Pydantic models for API
@@ -150,7 +150,7 @@ async def chat_endpoint(request: ChatRequest):
         
         # Add user message to agent memory
         user_message = Message(
-            role=ROLE_TYPE.USER,
+            role=Role.USER,
             content=request.message
         )
         agent.memory.add_message(user_message)
@@ -161,7 +161,7 @@ async def chat_endpoint(request: ChatRequest):
         # Get the last assistant message from memory
         assistant_messages = [
             msg for msg in agent.memory.messages 
-            if msg.role == ROLE_TYPE.ASSISTANT
+            if msg.role == Role.ASSISTANT
         ]
         
         if assistant_messages:
@@ -246,7 +246,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 session_manager.update_activity(session_id)
                 
                 # Add user message to memory
-                user_msg = Message(role=ROLE_TYPE.USER, content=user_message)
+                user_msg = Message(role=Role.USER, content=user_message)
                 agent.memory.add_message(user_msg)
                 
                 # Send acknowledgment
@@ -261,7 +261,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 # Get response
                 assistant_messages = [
                     msg for msg in agent.memory.messages 
-                    if msg.role == ROLE_TYPE.ASSISTANT
+                    if msg.role == Role.ASSISTANT
                 ]
                 
                 if assistant_messages:
