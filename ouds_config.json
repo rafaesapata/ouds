@@ -1,7 +1,7 @@
 {
   "project": {
     "name": "OUDS - Oráculo UDS",
-    "version": "1.0.14",
+    "version": "1.0.15",
     "description": "Sistema de IA conversacional baseado no OpenManus com interface web moderna",
     "created": "2025-06-05",
     "author": "Equipe UDS",

@@ -56,6 +56,24 @@ pandas>=1.5.0
 # HTTP streaming
 httpx-sse>=0.3.0
 sse-starlette>=1.0.0
+
+# Docker support
+docker>=6.0.0
+
+# Browser automation
+browser-use>=0.2.5
+playwright>=1.40.0
+
+# MCP Support
+mcp>=1.9.0
+
+# Search engines
+duckduckgo-search>=6.0.0
+googlesearch-python>=1.2.0
+baidusearch>=1.0.0
+
+# TOML support
+tomli>=2.0.0
 EOF
 
 # requirements-core.txt
@@ -286,6 +304,15 @@ critical_packages=(
     "loguru>=0.6.0"
     "pyyaml>=6.0.0"
     "tomli>=2.0.0"
+    "docker>=6.0.0"
+    "beautifulsoup4>=4.12.0"
+    "pandas>=1.5.0"
+    "browser-use>=0.2.5"
+    "mcp>=1.9.0"
+    "duckduckgo-search>=6.0.0"
+    "googlesearch-python>=1.2.0"
+    "baidusearch>=1.0.0"
+    "playwright>=1.40.0"
 )
 
 echo ""
@@ -333,7 +360,7 @@ echo ""
 echo "🔍 Verificando instalação..."
 echo "============================"
 
-test_packages=("fastapi" "uvicorn" "pydantic" "openai" "tiktoken" "boto3" "requests" "tenacity")
+test_packages=("fastapi" "uvicorn" "pydantic" "openai" "tiktoken" "boto3" "requests" "tenacity" "docker" "beautifulsoup4" "pandas" "browser_use" "mcp" "duckduckgo_search" "googlesearch" "baidusearch")
 
 for package in "${test_packages[@]}"; do
     if python3 -c "import $package" 2>/dev/null; then

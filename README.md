@@ -251,6 +251,6 @@ Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes
 
 ---
 
-**OUDS - Oráculo UDS v1.0.14**  
+**OUDS - Oráculo UDS v1.0.15**  
 *Sistema de IA conversacional baseado no OpenManus*
 
