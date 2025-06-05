@@ -189,8 +189,9 @@ class SessionManager:
             self.github_configs[workspace_id] = {}
             
             # Create workspace directory structure
-            workspace_dir = f"/tmp/ouds_workspace_{workspace_id}"
-            os.makedirs(workspace_dir, exist_ok=True)
+            from app.config import config
+            workspace_dir = config.workspace_root
+            workspace_dir.mkdir(exist_ok=True)
             
             logger.info(f"Created new workspace: {workspace_id} at {workspace_dir}")
     
@@ -376,6 +377,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize knowledge system
+try:
+    from app.knowledge.fastapi_routes import register_knowledge_routers, initialize_knowledge_system
+    
+    # Initialize knowledge system
+    if initialize_knowledge_system():
+        # Register knowledge system routers
+        register_knowledge_routers(app)
+        logger.info("Sistema de conhecimento integrado com sucesso")
+    else:
+        logger.warning("Falha ao inicializar sistema de conhecimento")
+except ImportError as e:
+    logger.warning(f"Sistema de conhecimento não disponível: {e}")
+except Exception as e:
+    logger.error(f"Erro ao integrar sistema de conhecimento: {e}")
+
 # Initialize session manager
 session_manager = SessionManager()
 
@@ -465,12 +482,30 @@ async def chat_endpoint(request: ChatRequest):
 
 
 async def process_chat_command(session_id: str, message: str, workspace_id: str = "default") -> ChatResponse:
-    """Process a chat command immediately."""
+    """Process a chat command with knowledge system integration."""
     try:
+        # Try to use knowledge-enhanced chat
+        try:
+            from app.knowledge.chat_integration import process_chat_with_knowledge
+            result = await process_chat_with_knowledge(session_id, message, workspace_id)
+            
+            return ChatResponse(
+                response=result["response"],
+                session_id=result["session_id"],
+                timestamp=result["timestamp"],
+                status=result["status"]
+            )
+            
+        except ImportError:
+            logger.warning("Sistema de conhecimento não disponível, usando processamento tradicional")
+        except Exception as e:
+            logger.error(f"Erro no sistema de conhecimento: {e}, usando fallback")
+        
+        # Fallback to traditional processing
         agent = session_manager.agents[workspace_id][session_id]
         
         # Mark as processing
-        command = session_manager.add_command_to_queue(session_id, message, priority=999, workspace_id=workspace_id)  # High priority for immediate processing
+        command = session_manager.add_command_to_queue(session_id, message, priority=999, workspace_id=workspace_id)
         current_command = session_manager.get_next_command(session_id, workspace_id)
         
         # Update session activity
@@ -901,8 +936,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 async def list_workspace_files(workspace_id: str = "default"):
     """List all files in the workspace directory."""
     try:
-        # Use workspace-specific directory
-        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
+        # Use consistent workspace directory with agent
+        from app.config import config
+        workspace_path = config.workspace_root
         workspace_path.mkdir(exist_ok=True)
         
         files = []
@@ -935,8 +971,9 @@ async def list_workspace_files(workspace_id: str = "default"):
 async def download_workspace_file(filename: str, workspace_id: str = "default"):
     """Download a file from the workspace."""
     try:
-        # Use workspace-specific directory
-        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
+        # Use consistent workspace directory with agent
+        from app.config import config
+        workspace_path = config.workspace_root
         file_path = workspace_path / filename
         
         # Security check: ensure file is within workspace
@@ -969,8 +1006,9 @@ async def download_workspace_file(filename: str, workspace_id: str = "default"):
 async def preview_workspace_file(filename: str, workspace_id: str = "default"):
     """Preview a text file from the workspace."""
     try:
-        # Use workspace-specific directory
-        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
+        # Use consistent workspace directory with agent
+        from app.config import config
+        workspace_path = config.workspace_root
         file_path = workspace_path / filename
         
         # Security check: ensure file is within workspace
@@ -1012,8 +1050,9 @@ async def preview_workspace_file(filename: str, workspace_id: str = "default"):
 async def delete_workspace_file(filename: str, workspace_id: str = "default"):
     """Delete a file from the workspace."""
     try:
-        # Use workspace-specific directory
-        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
+        # Use consistent workspace directory with agent
+        from app.config import config
+        workspace_path = config.workspace_root
         file_path = workspace_path / filename
         
         # Security check: ensure file is within workspace
@@ -1041,8 +1080,9 @@ async def delete_workspace_file(filename: str, workspace_id: str = "default"):
 async def upload_workspace_file(file: UploadFile = File(...), workspace_id: str = "default"):
     """Upload a file to the workspace."""
     try:
-        # Use workspace-specific directory
-        workspace_path = Path(f"/tmp/ouds_workspace_{workspace_id}")
+        # Use consistent workspace directory with agent
+        from app.config import config
+        workspace_path = config.workspace_root
         workspace_path.mkdir(exist_ok=True)
         
         # Validate file
@@ -1076,7 +1116,7 @@ async def upload_workspace_file(file: UploadFile = File(...), workspace_id: str 
         # Write file
         file_path.write_bytes(content)
         
-        logger.info(f"File uploaded successfully: {safe_filename} ({len(content)} bytes)")
+        logger.info(f"File uploaded successfully: {safe_filename} ({len(content)} bytes) to {workspace_path}")
         
         return UploadResponse(
             message="File uploaded successfully",

@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Input } from '@/components/ui/input.jsx'
 import { ScrollArea } from '@/components/ui/scroll-area.jsx'
-import { Send, User, Bot, Loader2, Settings, RotateCcw, FolderOpen, Paperclip } from 'lucide-react'
+import { Send, User, Bot, Loader2, Settings, RotateCcw, FolderOpen, Paperclip, Brain, MessageSquare } from 'lucide-react'
 import { apiRequest, checkBackendHealth, API_ENDPOINTS, buildApiUrl } from '@/lib/api.js'
 import { useTaskProgressWebSocket } from '@/lib/taskProgress.js'
 import TaskProgress from '@/components/TaskProgress.jsx'
 import FileManager from '@/components/FileManager.jsx'
 import CommandQueue from '@/components/CommandQueue.jsx'
+import KnowledgeManager from '@/components/KnowledgeManager.jsx'
 import ReactMarkdown from 'react-markdown'
 import './App.css'
 
@@ -24,6 +25,7 @@ function App() {
   const [showFileManager, setShowFileManager] = useState(false)
   const [attachedFile, setAttachedFile] = useState(null)
   const [isUploadingFile, setIsUploadingFile] = useState(false)
+  const [activeTab, setActiveTab] = useState('chat') // Nova state para controlar abas
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
   
@@ -523,8 +525,39 @@ function App() {
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 flex flex-col min-h-0">
+      {/* Tabs Navigation */}
+      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="flex space-x-1 px-4">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'chat'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            <MessageSquare className="h-4 w-4 mr-2 inline" />
+            Chat
+          </button>
+          <button
+            onClick={() => setActiveTab('knowledge')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'knowledge'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            <Brain className="h-4 w-4 mr-2 inline" />
+            Base de Conhecimento
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'chat' ? (
+        <>
+          {/* Chat Area */}
+          <div className="flex-1 flex flex-col min-h-0">
         <ScrollArea className="flex-1 px-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
@@ -908,7 +941,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v1.9.0</span>
+              <span>v2.1.0</span>
               {workspaceId && workspaceId !== 'default' && (
                 <>
                   <span>•</span>
@@ -919,6 +952,13 @@ function App() {
           </div>
         </div>
       </div>
+        </>
+      ) : (
+        /* Knowledge Manager Tab */
+        <div className="flex-1 overflow-hidden">
+          <KnowledgeManager workspaceId={workspaceId || 'default'} />
+        </div>
+      )}
 
       {/* File Manager Modal */}
       <FileManager 
