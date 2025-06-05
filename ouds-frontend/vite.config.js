@@ -51,6 +51,24 @@ export default defineConfig(({ mode }) => {
               console.log('✅ Proxy response:', proxyRes.statusCode, req.url);
             });
           }
+        },
+        // Proxy direto para o endpoint de streaming
+        '/chat/stream': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+          configure: (proxy, options) => {
+            console.log('🔧 Proxy /chat/stream → http://localhost:8000/chat/stream');
+            proxy.on('error', (err, req, res) => {
+              console.log('❌ Proxy error:', err.message);
+            });
+            proxy.on('proxyReq', (proxyReq, req, res) => {
+              console.log('🔄 Proxying stream:', req.method, req.url, '→', 'http://localhost:8000' + req.url);
+            });
+            proxy.on('proxyRes', (proxyRes, req, res) => {
+              console.log('✅ Proxy stream response:', proxyRes.statusCode, req.url);
+            });
+          }
         }
       }
     },

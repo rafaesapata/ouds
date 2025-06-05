@@ -149,7 +149,7 @@ function App() {
     try {
       console.log('🎯 Starting streaming request...');
       
-      const response = await fetch('/service/chat/stream', {
+      const response = await fetch('/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

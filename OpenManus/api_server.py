@@ -194,40 +194,98 @@ async def chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
+# Novo endpoint para streaming de chat
+@app.post("/chat/stream")
+async def chat_stream_endpoint(request: Request):
+    """Streaming chat endpoint for processing user messages with SSE."""
+    try:
+        # Parse request body
+        body = await request.json()
+        message = body.get("message", "")
+        session_id = body.get("session_id", str(uuid.uuid4()))
+        workspace_id = body.get("workspace_id", "default")
+        
+        # Log request
+        logger.info(f"Streaming chat request: session={session_id}, workspace={workspace_id}, message={message[:50]}...")
+        
+        # Get or create session
+        session_id = await session_manager.get_or_create_session(session_id, workspace_id)
+        
+        # Create streaming response
+        return StreamingResponse(
+            process_chat_stream(session_id, message, workspace_id),
+            media_type="text/event-stream"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in chat stream endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+async def process_chat_stream(session_id: str, message: str, workspace_id: str = "default"):
+    """Process a chat message and stream the response."""
+    try:
+        # Get agent for this session
+        if workspace_id not in session_manager.agents or session_id not in session_manager.agents[workspace_id]:
+            # Create agent if not exists
+            from app.agent.toolcall import ToolCallAgent
+            session_manager.agents[workspace_id][session_id] = ToolCallAgent(name=f"agent_{session_id}")
+        
+        agent = session_manager.agents[workspace_id][session_id]
+        
+        # Log message
+        logger.info(f"Processing streaming message in session {session_id} workspace {workspace_id}: {message}")
+        
+        # Add user message to agent memory
+        user_message = Message(
+            role=Role.USER,
+            content=message
+        )
+        agent.memory.add_message(user_message)
+        
+        # Run the agent
+        yield f"data: {json.dumps({'type': 'start', 'session_id': session_id})}\n\n"
+        
+        # Process message with knowledge integration
+        from app.knowledge.chat_integration import get_context_for_chat
+        
+        # Get context from knowledge system
+        context = await get_context_for_chat(message, workspace_id)
+        if context:
+            logger.info(f"Applied context to message: {len(context)} chars")
+            # Add context to system message
+            agent.system_prompt = f"{agent.system_prompt}\n\nContexto relevante:\n{context}"
+        
+        # Run agent with streaming
+        async for chunk in agent.run_with_streaming():
+            if isinstance(chunk, str) and chunk.strip():
+                yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+            elif isinstance(chunk, dict):
+                yield f"data: {json.dumps({'type': 'status', 'data': chunk})}\n\n"
+        
+        # Send completion message
+        yield f"data: {json.dumps({'type': 'end', 'session_id': session_id})}\n\n"
+        
+    except Exception as e:
+        logger.error(f"Error in streaming chat: {e}")
+        error_message = str(e)
+        yield f"data: {json.dumps({'type': 'error', 'error': error_message})}\n\n"
+
+
 async def process_chat_command(session_id: str, message: str, workspace_id: str = "default") -> ChatResponse:
     """Process a chat command with knowledge system integration."""
     try:
         # Log do workspace sendo usado
-        logger.info(f"Processando chat para sessão {session_id} no workspace {workspace_id}")
+        logger.info(f"Using workspace: {workspace_id}")
         
-        # Try to use knowledge-enhanced chat
-        try:
-            from app.knowledge.chat_integration import process_chat_with_knowledge
-            result = await process_chat_with_knowledge(session_id, message, workspace_id)
-            
-            return ChatResponse(
-                response=result["response"],
-                session_id=result["session_id"],
-                timestamp=result["timestamp"],
-                status=result["status"]
-            )
-            
-        except ImportError:
-            logger.warning("Sistema de conhecimento não disponível, usando processamento tradicional")
-        except Exception as e:
-            logger.error(f"Erro no sistema de conhecimento: {e}, usando fallback")
+        # Get agent for this session
+        if workspace_id not in session_manager.agents or session_id not in session_manager.agents[workspace_id]:
+            # Create agent if not exists
+            from app.agent.toolcall import ToolCallAgent
+            session_manager.agents[workspace_id][session_id] = ToolCallAgent(name=f"agent_{session_id}")
         
-        # Fallback to traditional processing
         agent = session_manager.agents[workspace_id][session_id]
         
-        # Mark as processing
-        command = session_manager.add_command_to_queue(session_id, message, priority=999, workspace_id=workspace_id)
-        current_command = session_manager.get_next_command(session_id, workspace_id)
-        
-        # Update session activity
-        session_manager.update_activity(session_id, workspace_id)
-        
-        # Process the message with the agent
         logger.info(f"Processing message in session {session_id} workspace {workspace_id}: {message}")
         
         # Add user message to agent memory
@@ -238,82 +296,35 @@ async def process_chat_command(session_id: str, message: str, workspace_id: str 
         agent.memory.add_message(user_message)
         
         # Run the agent
-        await agent.run(message)
+        from app.knowledge.chat_integration import get_context_for_chat
         
-        # Get the last assistant message from memory
-        assistant_messages = [
-            msg for msg in agent.memory.messages 
-            if msg.role == Role.ASSISTANT
-        ]
+        # Get context from knowledge system
+        context = await get_context_for_chat(message, workspace_id)
+        if context:
+            logger.info(f"Applied context to message: {len(context)} chars")
+            # Add context to system message
+            agent.system_prompt = f"{agent.system_prompt}\n\nContexto relevante:\n{context}"
         
-        if assistant_messages:
-            response_content = assistant_messages[-1].content
-        else:
-            response_content = "I processed your request, but didn't generate a specific response."
+        response = await agent.run()
         
-        # Mark command as completed
-        if current_command:
-            session_manager.complete_command(session_id, current_command.id, success=True, workspace_id=workspace_id)
-        
-        # Process next command in queue if any
-        asyncio.create_task(process_next_command_in_queue(session_id, workspace_id))
+        # Update activity
+        session_manager.update_activity(session_id, workspace_id)
         
         return ChatResponse(
-            response=response_content,
+            response=response,
             session_id=session_id,
             timestamp=datetime.now(),
-            status="success"
+            status="completed"
         )
         
     except Exception as e:
-        logger.error(f"Error processing chat request: {str(e)}")
-        
-        # Mark command as failed
-        if (workspace_id in session_manager.processing_commands and 
-            session_id in session_manager.processing_commands[workspace_id]):
-            current = session_manager.processing_commands[workspace_id][session_id]
-            if current:
-                session_manager.complete_command(session_id, current.id, success=False, workspace_id=workspace_id)
-        
-        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
-
-
-async def process_next_command_in_queue(session_id: str, workspace_id: str = "default"):
-    """Process the next command in the queue for a session."""
-    try:
-        next_command = session_manager.get_next_command(session_id, workspace_id)
-        if next_command:
-            logger.info(f"Processing next command from queue: {next_command.message[:50]}...")
-            await process_chat_command(session_id, next_command.message, workspace_id)
-    except Exception as e:
-        logger.error(f"Error processing next command in queue: {e}")
-
-
-@app.get("/api/sessions/{session_id}/queue", response_model=CommandQueueResponse)
-async def get_command_queue(session_id: str):
-    """Get the command queue status for a session."""
-    # Get workspace_id from request headers or default
-    workspace_id = "default"  # TODO: Extract from request context
-    await session_manager.get_or_create_session(session_id, workspace_id)
-    return session_manager.get_command_queue_status(session_id, workspace_id)
-
-
-@app.delete("/api/sessions/{session_id}/queue/{command_id}")
-async def cancel_command(session_id: str, command_id: str):
-    """Cancel a pending command in the queue."""
-    try:
-        if session_id in session_manager.command_queues:
-            queue = session_manager.command_queues[session_id]
-            for i, command in enumerate(queue):
-                if command.id == command_id:
-                    removed_command = queue.pop(i)
-                    logger.info(f"Cancelled command: {removed_command.message[:50]}...")
-                    return {"message": "Command cancelled successfully"}
-        
-        raise HTTPException(status_code=404, detail="Command not found")
-    except Exception as e:
-        logger.error(f"Error cancelling command: {e}")
-        raise HTTPException(status_code=500, detail=f"Error cancelling command: {str(e)}")
+        logger.error(f"Error processing chat command: {e}")
+        return ChatResponse(
+            response=f"Erro ao processar comando: {str(e)}",
+            session_id=session_id,
+            timestamp=datetime.now(),
+            status="error"
+        )
 
 
 @app.get("/api/sessions")
@@ -323,9 +334,9 @@ async def list_sessions(workspace_id: str = "default"):
         # Ensure workspace exists
         session_manager.ensure_workspace(workspace_id)
         
+        # Get sessions for this workspace
         sessions = []
-        for session_id in session_manager.sessions.get(workspace_id, {}):
-            session_info = session_manager.sessions[workspace_id][session_id]
+        for session_id, session_info in session_manager.sessions.get(workspace_id, {}).items():
             sessions.append(SessionInfo(
                 session_id=session_id,
                 created_at=session_info["created_at"],
@@ -334,45 +345,15 @@ async def list_sessions(workspace_id: str = "default"):
                 status="active"
             ))
         
-        # Sort by last activity (most recent first)
-        sessions.sort(key=lambda x: x.last_activity, reverse=True)
-        
         return SessionListResponse(
             sessions=sessions,
             total_count=len(sessions),
             workspace_id=workspace_id
         )
-    
+        
     except Exception as e:
         logger.error(f"Error listing sessions: {e}")
         raise HTTPException(status_code=500, detail=f"Error listing sessions: {str(e)}")
-
-
-@app.get("/api/workspaces")
-async def list_workspaces():
-    """List all workspaces."""
-    try:
-        workspaces = []
-        for workspace_id, workspace_info in session_manager.workspaces.items():
-            workspaces.append(WorkspaceInfo(
-                workspace_id=workspace_id,
-                created_at=workspace_info["created_at"],
-                last_activity=workspace_info["last_activity"],
-                session_count=workspace_info["session_count"],
-                status="active"
-            ))
-        
-        # Sort by last activity (most recent first)
-        workspaces.sort(key=lambda x: x.last_activity, reverse=True)
-        
-        return WorkspaceListResponse(
-            workspaces=workspaces,
-            total_count=len(workspaces)
-        )
-    
-    except Exception as e:
-        logger.error(f"Error listing workspaces: {e}")
-        raise HTTPException(status_code=500, detail=f"Error listing workspaces: {str(e)}")
 
 
 @app.delete("/api/sessions/{session_id}")
@@ -381,28 +362,22 @@ async def delete_session(session_id: str, workspace_id: str = "default"):
     try:
         # Check if session exists
         if workspace_id not in session_manager.sessions or session_id not in session_manager.sessions[workspace_id]:
-            raise HTTPException(status_code=404, detail="Session not found")
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found in workspace {workspace_id}")
         
         # Delete session
         del session_manager.sessions[workspace_id][session_id]
-        
-        # Delete agent if exists
         if workspace_id in session_manager.agents and session_id in session_manager.agents[workspace_id]:
             del session_manager.agents[workspace_id][session_id]
-        
-        # Delete command queue if exists
         if workspace_id in session_manager.command_queues and session_id in session_manager.command_queues[workspace_id]:
             del session_manager.command_queues[workspace_id][session_id]
-        
-        # Delete processing command if exists
         if workspace_id in session_manager.processing_commands and session_id in session_manager.processing_commands[workspace_id]:
             del session_manager.processing_commands[workspace_id][session_id]
         
-        # Update workspace session count
+        # Update session count
         session_manager.workspaces[workspace_id]["session_count"] = len(session_manager.sessions[workspace_id])
         
-        return {"message": f"Session {session_id} deleted successfully"}
-    
+        return {"message": f"Session {session_id} deleted from workspace {workspace_id}"}
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -410,66 +385,29 @@ async def delete_session(session_id: str, workspace_id: str = "default"):
         raise HTTPException(status_code=500, detail=f"Error deleting session: {str(e)}")
 
 
-@app.delete("/api/workspaces/{workspace_id}")
-async def delete_workspace(workspace_id: str):
-    """Delete a workspace."""
+@app.get("/api/sessions/{session_id}/queue")
+async def get_session_queue(session_id: str, workspace_id: str = "default"):
+    """Get the command queue for a session."""
     try:
-        # Check if workspace exists
-        if workspace_id not in session_manager.workspaces:
-            raise HTTPException(status_code=404, detail="Workspace not found")
+        # Check if session exists
+        if workspace_id not in session_manager.sessions or session_id not in session_manager.sessions[workspace_id]:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found in workspace {workspace_id}")
         
-        # Cannot delete default workspace
-        if workspace_id == "default":
-            raise HTTPException(status_code=403, detail="Cannot delete default workspace")
+        # Get queue status
+        queue_status = session_manager.get_command_queue_status(session_id, workspace_id)
         
-        # Delete workspace
-        del session_manager.workspaces[workspace_id]
+        return queue_status
         
-        # Delete sessions
-        if workspace_id in session_manager.sessions:
-            del session_manager.sessions[workspace_id]
-        
-        # Delete agents
-        if workspace_id in session_manager.agents:
-            del session_manager.agents[workspace_id]
-        
-        # Delete command queues
-        if workspace_id in session_manager.command_queues:
-            del session_manager.command_queues[workspace_id]
-        
-        # Delete processing commands
-        if workspace_id in session_manager.processing_commands:
-            del session_manager.processing_commands[workspace_id]
-        
-        # Delete workspace directory
-        workspace_path = get_workspace_path(workspace_id)
-        if workspace_path.exists():
-            shutil.rmtree(workspace_path)
-        
-        return {"message": f"Workspace {workspace_id} deleted successfully"}
-    
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting workspace: {e}")
-        raise HTTPException(status_code=500, detail=f"Error deleting workspace: {str(e)}")
+        logger.error(f"Error getting session queue: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting session queue: {str(e)}")
 
 
-def get_workspace_path(workspace_id: str) -> Path:
-    """Get the path to a workspace directory."""
-    # Use workspace-specific directory
-    workspace_path = Path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace", workspace_id))
-    workspace_path.mkdir(parents=True, exist_ok=True)
-    
-    # Create files directory if it doesn't exist
-    files_path = workspace_path / "files"
-    files_path.mkdir(exist_ok=True)
-    
-    return workspace_path
-
-@app.get("/api/workspace/files", response_model=FileListResponse)
+@app.get("/api/workspace/files")
 async def list_workspace_files(session_id: Optional[str] = None):
-    """List all files in the workspace directory for the current session."""
+    """List files in the workspace."""
     try:
         # Get workspace_id from session or use default
         workspace_id = "default"
@@ -480,39 +418,35 @@ async def list_workspace_files(session_id: Optional[str] = None):
                     workspace_id = ws_id
                     break
         
-        # Use workspace-specific directory
-        workspace_path = get_workspace_path(workspace_id)
-        files_path = workspace_path / "files"
-        files_path.mkdir(exist_ok=True)
+        # Ensure workspace exists
+        session_manager.ensure_workspace(workspace_id)
         
+        # Get workspace path
+        workspace_path = Path(f"workspace/{workspace_id}/files")
+        workspace_path.mkdir(parents=True, exist_ok=True)
+        
+        # List files
         files = []
-        for file_path in files_path.rglob("*"):
+        for file_path in workspace_path.glob("*"):
             if file_path.is_file():
-                # Skip hidden files and system files
-                if file_path.name.startswith('.'):
-                    continue
-                    
-                stat = file_path.stat()
                 files.append(FileInfo(
                     name=file_path.name,
-                    size=stat.st_size,
-                    modified=datetime.fromtimestamp(stat.st_mtime),
+                    size=file_path.stat().st_size,
+                    modified=datetime.fromtimestamp(file_path.stat().st_mtime),
                     type=mimetypes.guess_type(str(file_path))[0] or "application/octet-stream",
-                    path=str(file_path.relative_to(files_path))
+                    path=str(file_path)
                 ))
-        
-        # Sort by modification time (newest first)
-        files.sort(key=lambda x: x.modified, reverse=True)
         
         return FileListResponse(
             files=files,
             total_count=len(files),
-            workspace_path=str(files_path.absolute())
+            workspace_path=str(workspace_path)
         )
-    
+        
     except Exception as e:
         logger.error(f"Error listing workspace files: {e}")
-        raise HTTPException(status_code=500, detail=f"Error listing files: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error listing workspace files: {str(e)}")
+
 
 @app.get("/api/workspace/files/{filename}/download")
 async def download_workspace_file(filename: str, session_id: Optional[str] = None):
@@ -526,28 +460,20 @@ async def download_workspace_file(filename: str, session_id: Optional[str] = Non
                 if session_id in sessions:
                     workspace_id = ws_id
                     break
-                    
-        # Use workspace-specific directory
-        workspace_path = get_workspace_path(workspace_id)
-        files_path = workspace_path / "files"
-        file_path = files_path / filename
         
-        # Security check: ensure file is within workspace
-        if not str(file_path.resolve()).startswith(str(files_path.resolve())):
-            raise HTTPException(status_code=403, detail="Access denied: file outside workspace")
+        # Ensure workspace exists
+        session_manager.ensure_workspace(workspace_id)
         
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
+        # Get file path
+        file_path = Path(f"workspace/{workspace_id}/files/{filename}")
         
-        if not file_path.is_file():
-            raise HTTPException(status_code=400, detail="Path is not a file")
+        # Check if file exists
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail=f"File {filename} not found in workspace {workspace_id}")
         
-        # Determine media type
-        media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-        
+        # Return file
         return FileResponse(
             path=str(file_path),
-            media_type=media_type,
             filename=filename
         )
     
@@ -570,55 +496,28 @@ async def preview_workspace_file(filename: str, session_id: Optional[str] = None
                 if session_id in sessions:
                     workspace_id = ws_id
                     break
-                    
-        # Use workspace-specific directory
-        workspace_path = get_workspace_path(workspace_id)
-        files_path = workspace_path / "files"
-        file_path = files_path / filename
         
-        # Security check: ensure file is within workspace
-        if not str(file_path.resolve()).startswith(str(files_path.resolve())):
-            raise HTTPException(status_code=403, detail="Access denied: file outside workspace")
+        # Ensure workspace exists
+        session_manager.ensure_workspace(workspace_id)
         
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
+        # Get file path
+        file_path = Path(f"workspace/{workspace_id}/files/{filename}")
         
-        if not file_path.is_file():
-            raise HTTPException(status_code=400, detail="Path is not a file")
+        # Check if file exists
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail=f"File {filename} not found in workspace {workspace_id}")
         
-        # Determine media type
+        # Check if file is text
         media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+        if not media_type.startswith("text/") and media_type != "application/json":
+            raise HTTPException(status_code=400, detail=f"File {filename} is not a text file")
         
-        # For text files, return content
-        if media_type.startswith('text/') or media_type == 'application/json':
-            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-                content = f.read()
-            
-            return {
-                "filename": filename,
-                "content": content,
-                "type": media_type,
-                "size": file_path.stat().st_size
-            }
+        # Read file content
+        content = file_path.read_text(encoding="utf-8")
         
-        # For images, return base64 encoded content
-        elif media_type.startswith('image/'):
-            return FileResponse(
-                path=str(file_path),
-                media_type=media_type,
-                filename=filename
-            )
+        # Return content
+        return {"filename": filename, "content": content, "media_type": media_type}
         
-        # For other files, return metadata only
-        else:
-            return {
-                "filename": filename,
-                "content": None,
-                "type": media_type,
-                "size": file_path.stat().st_size,
-                "message": "Preview not available for this file type"
-            }
-    
     except HTTPException:
         raise
     except Exception as e:
@@ -638,27 +537,22 @@ async def delete_workspace_file(filename: str, session_id: Optional[str] = None)
                 if session_id in sessions:
                     workspace_id = ws_id
                     break
-                    
-        # Use workspace-specific directory
-        workspace_path = get_workspace_path(workspace_id)
-        files_path = workspace_path / "files"
-        file_path = files_path / filename
         
-        # Security check: ensure file is within workspace
-        if not str(file_path.resolve()).startswith(str(files_path.resolve())):
-            raise HTTPException(status_code=403, detail="Access denied: file outside workspace")
+        # Ensure workspace exists
+        session_manager.ensure_workspace(workspace_id)
         
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
+        # Get file path
+        file_path = Path(f"workspace/{workspace_id}/files/{filename}")
         
-        if not file_path.is_file():
-            raise HTTPException(status_code=400, detail="Path is not a file")
+        # Check if file exists
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail=f"File {filename} not found in workspace {workspace_id}")
         
         # Delete file
         file_path.unlink()
         
-        return {"message": f"File {filename} deleted successfully"}
-    
+        return {"message": f"File {filename} deleted from workspace {workspace_id}"}
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -666,51 +560,39 @@ async def delete_workspace_file(filename: str, session_id: Optional[str] = None)
         raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
 
 
-@app.post("/api/workspace/files/upload", response_model=UploadResponse)
+@app.post("/api/workspace/files/upload")
 async def upload_workspace_file(
     file: UploadFile = File(...),
-    session_id: Optional[str] = Form(None)
+    session_id: str = Form(...),
 ):
     """Upload a file to the workspace."""
     try:
         # Get workspace_id from session or use default
         workspace_id = "default"
-        if session_id:
-            # Find workspace_id for this session
-            for ws_id, sessions in session_manager.sessions.items():
-                if session_id in sessions:
-                    workspace_id = ws_id
-                    break
-                    
-        # Use workspace-specific directory
-        workspace_path = get_workspace_path(workspace_id)
-        files_path = workspace_path / "files"
-        files_path.mkdir(exist_ok=True)
+        for ws_id, sessions in session_manager.sessions.items():
+            if session_id in sessions:
+                workspace_id = ws_id
+                break
         
-        # Generate safe filename
-        filename = file.filename
-        file_path = files_path / filename
+        # Ensure workspace exists
+        session_manager.ensure_workspace(workspace_id)
         
-        # Security check: ensure file is within workspace
-        if not str(file_path.resolve()).startswith(str(files_path.resolve())):
-            raise HTTPException(status_code=403, detail="Access denied: file outside workspace")
+        # Get workspace path
+        workspace_path = Path(f"workspace/{workspace_id}/files")
+        workspace_path.mkdir(parents=True, exist_ok=True)
         
         # Save file
+        file_path = workspace_path / file.filename
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
         
-        # Get file info
-        stat = file_path.stat()
-        
         return UploadResponse(
-            filename=filename,
-            size=stat.st_size,
+            filename=file.filename,
+            size=file_path.stat().st_size,
             type=mimetypes.guess_type(str(file_path))[0] or "application/octet-stream",
-            path=str(file_path.relative_to(files_path))
+            path=str(file_path)
         )
-    
-    except HTTPException:
-        raise
+        
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
@@ -723,31 +605,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     try:
         while True:
             data = await websocket.receive_text()
-            # Process message
-            try:
-                message_data = json.loads(data)
-                if "message" in message_data:
-                    # Get workspace_id from message or use default
-                    workspace_id = message_data.get("workspace_id", "default")
-                    
-                    # Process chat command
-                    response = await process_chat_command(session_id, message_data["message"], workspace_id)
-                    
-                    # Send response
-                    await websocket.send_json({
-                        "response": response.response,
-                        "timestamp": response.timestamp.isoformat(),
-                        "status": response.status
-                    })
-                else:
-                    await websocket.send_json({"error": "Invalid message format"})
-            except Exception as e:
-                logger.error(f"Error processing WebSocket message: {e}")
-                await websocket.send_json({"error": f"Error processing message: {str(e)}"})
+            await websocket.send_text(f"Message received: {data}")
     except WebSocketDisconnect:
-        manager.disconnect(session_id)
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
         manager.disconnect(session_id)
 
 
