@@ -9,13 +9,20 @@ baseado em contexto, performance e disponibilidade.
 import json
 import time
 import asyncio
-import aiohttp
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import logging
 from enum import Enum
+
+# Import opcional do aiohttp
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    AIOHTTP_AVAILABLE = False
+    logger.warning("aiohttp não disponível - funcionalidades de HTTP assíncrono limitadas")
 
 logger = logging.getLogger(__name__)
 
@@ -418,6 +425,9 @@ class LLMRouter:
             "stream": kwargs.get("stream", False)
         }
         
+        if not AIOHTTP_AVAILABLE:
+            raise Exception("aiohttp não disponível - não é possível fazer chamadas HTTP assíncronas")
+        
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=config.timeout)) as session:
             async with session.post(config.api_endpoint, headers=headers, json=payload) as response:
                 if response.status == 200:
@@ -455,6 +465,9 @@ class LLMRouter:
         system_messages = [msg["content"] for msg in messages if msg["role"] == "system"]
         if system_messages:
             payload["system"] = "\n".join(system_messages)
+        
+        if not AIOHTTP_AVAILABLE:
+            raise Exception("aiohttp não disponível - não é possível fazer chamadas HTTP assíncronas")
         
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=config.timeout)) as session:
             async with session.post(config.api_endpoint, headers=headers, json=payload) as response:

@@ -13,15 +13,41 @@ from datetime import datetime, timezone
 import asyncio
 import logging
 
-from app.knowledge import (
-    knowledge_manager, 
-    llm_router, 
-    evolution_engine,
-    KnowledgeEntry,
-    ConversationRecord,
-    ContextType,
-    LLMProvider
-)
+# Importações opcionais do sistema de conhecimento
+try:
+    from app.knowledge import (
+        knowledge_manager, 
+        llm_router, 
+        evolution_engine,
+        KnowledgeEntry,
+        ConversationRecord,
+        LLMProvider,
+        ContextType
+    )
+    KNOWLEDGE_SYSTEM_AVAILABLE = True
+except ImportError as e:
+    KNOWLEDGE_SYSTEM_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Sistema de conhecimento não disponível: {e}")
+    
+    # Criar classes mock para evitar erros
+    class MockKnowledgeEntry:
+        pass
+    class MockConversationRecord:
+        pass
+    class MockLLMProvider:
+        pass
+    class MockContextType:
+        pass
+    
+    KnowledgeEntry = MockKnowledgeEntry
+    ConversationRecord = MockConversationRecord
+    LLMProvider = MockLLMProvider
+    ContextType = MockContextType
+    
+    knowledge_manager = None
+    llm_router = None
+    evolution_engine = None
 
 logger = logging.getLogger(__name__)
 
@@ -303,15 +329,24 @@ async def cleanup_learning_patterns(workspace_id: str, request: CleanupRequest):
 # Função para registrar routers
 def register_knowledge_routers(app):
     """Registra todos os routers do sistema de conhecimento"""
+    if not KNOWLEDGE_SYSTEM_AVAILABLE:
+        logger.warning("Sistema de conhecimento não disponível - pulando registro de routers")
+        return False
+        
     app.include_router(knowledge_router)
     app.include_router(llm_router_api)
     app.include_router(evolution_router)
     
     logger.info("Routers do sistema de conhecimento registrados")
+    return True
 
 # Função para inicializar sistema de conhecimento
 def initialize_knowledge_system():
     """Inicializa o sistema de conhecimento"""
+    if not KNOWLEDGE_SYSTEM_AVAILABLE:
+        logger.warning("Sistema de conhecimento não disponível - pulando inicialização")
+        return False
+        
     try:
         # Criar diretórios necessários dinamicamente
         try:
