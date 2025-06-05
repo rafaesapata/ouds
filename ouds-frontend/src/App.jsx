@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area.jsx'
 import { Send, User, Bot, Loader2, Settings, RotateCcw } from 'lucide-react'
 import './App.css'
 
-const API_BASE_URL = 'http://localhost:8000'
+const API_BASE_URL = __OUDS_API_URL__ || 'http://localhost:8000'
 
 function App() {
   const [messages, setMessages] = useState([])
@@ -265,8 +265,13 @@ function App() {
             </div>
           )}
           
-          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-            OUDS pode cometer erros. Considere verificar informações importantes.
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center space-y-1">
+            <div>OUDS pode cometer erros. Considere verificar informações importantes.</div>
+            <div className="flex items-center justify-center space-x-2">
+              <span>OUDS - Oráculo UDS</span>
+              <span>•</span>
+              <span>v{__OUDS_VERSION__ || '1.0.0'}</span>
+            </div>
           </div>
         </div>
       </div>

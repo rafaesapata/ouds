@@ -43,23 +43,31 @@ echo "✅ npm $NPM_VERSION encontrado"
 echo ""
 
 # Configurar Backend
-echo "🔧 Configurando Backend (OpenManus + API)..."
+echo "🔧 Configurando Backend (API OUDS)..."
 cd OpenManus
 
 echo "📦 Instalando dependências Python..."
-pip3 install -r requirements.txt
+echo "Tentando instalação completa primeiro..."
+if pip3 install -r requirements.txt; then
+    echo "✅ Dependências completas instaladas com sucesso!"
+else
+    echo "⚠️ Erro na instalação completa. Tentando instalação mínima..."
+    if pip3 install -r requirements-minimal.txt; then
+        echo "✅ Dependências mínimas instaladas com sucesso!"
+        echo "ℹ️ Algumas funcionalidades avançadas podem não estar disponíveis."
+    else
+        echo "❌ Erro na instalação das dependências. Verifique sua conexão e tente novamente."
+        exit 1
+    fi
+fi
 
 echo "⚙️ Configurando variáveis de ambiente..."
 if [ ! -f .env ]; then
-    cat > .env << EOF
-# Configurações do OUDS
-WORKSPACE_ROOT=./workspace
-LOG_LEVEL=INFO
-
-# Adicione sua chave da OpenAI aqui:
-# OPENAI_API_KEY=sk-...
-EOF
-    echo "📝 Arquivo .env criado. Configure sua OPENAI_API_KEY!"
+    cp .env.example .env
+    echo "📝 Arquivo .env criado a partir do .env.example"
+    echo "⚠️ IMPORTANTE: Configure sua OPENAI_API_KEY no arquivo OpenManus/.env!"
+else
+    echo "📝 Arquivo .env já existe. Mantendo configurações atuais."
 fi
 
 cd ..
@@ -141,8 +149,8 @@ chmod +x start_ouds.sh
 cat > ouds_config.json << EOF
 {
   "name": "OUDS - Oráculo UDS",
-  "version": "1.0.0",
-  "description": "Sistema de IA conversacional baseado no OpenManus",
+  "version": "1.0.2",
+  "description": "Sistema de IA conversacional OUDS - Oráculo UDS",
   "backend": {
     "port": 8000,
     "host": "localhost",

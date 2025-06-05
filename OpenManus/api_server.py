@@ -6,6 +6,7 @@ Provides REST API endpoints for frontend communication.
 
 import asyncio
 import json
+import os
 import uuid
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -290,11 +291,20 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
+    
+    # Configurações via variáveis de ambiente
+    host = os.getenv("OUDS_API_HOST", "0.0.0.0")
+    port = int(os.getenv("OUDS_API_PORT", "8000"))
+    reload = os.getenv("OUDS_API_RELOAD", "true").lower() == "true"
+    log_level = os.getenv("OUDS_API_LOG_LEVEL", "info").lower()
+    
+    print(f"🚀 Iniciando OUDS API Server em {host}:{port}")
+    
     uvicorn.run(
         "api_server:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
+        host=host,
+        port=port,
+        reload=reload,
+        log_level=log_level
     )
 
