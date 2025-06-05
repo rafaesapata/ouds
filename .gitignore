@@ -147,3 +147,7 @@ OpenManus/config/config.toml
 config/config.toml
 *.toml
 
+# Environment files with secrets
+OpenManus/.env
+.env
+

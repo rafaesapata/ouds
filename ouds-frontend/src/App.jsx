@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Input } from '@/components/ui/input.jsx'
 import { ScrollArea } from '@/components/ui/scroll-area.jsx'
-import { Send, User, Bot, Loader2, Settings, RotateCcw } from 'lucide-react'
+import { Send, User, Bot, Loader2, Settings, RotateCcw, FolderOpen } from 'lucide-react'
 import { apiRequest, checkBackendHealth, API_ENDPOINTS, buildApiUrl } from '@/lib/api.js'
 import { useTaskProgressWebSocket } from '@/lib/taskProgress.js'
 import TaskProgress from '@/components/TaskProgress.jsx'
+import FileManager from '@/components/FileManager.jsx'
+import CommandQueue from '@/components/CommandQueue.jsx'
 import './App.css'
 
 function App() {
@@ -17,6 +19,7 @@ function App() {
   const [abortController, setAbortController] = useState(null)
   const [streamingMessage, setStreamingMessage] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [showFileManager, setShowFileManager] = useState(false)
   const messagesEndRef = useRef(null)
   
   // Use WebSocket hook for real-time task progress
@@ -292,7 +295,9 @@ function App() {
       setIsLoading(false)
       setAbortController(null)
     }
-  }  const handleKeyPress = (e) => {
+  };
+
+  const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       sendMessageWithStreaming()
@@ -315,7 +320,7 @@ function App() {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-                OUDS - Oráculo UDS
+                Oráculo - Assistente Inteligente UDS
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {isConnected ? 'Conectado' : 'Desconectado'}
@@ -334,6 +339,15 @@ function App() {
                 Nova conversa
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowFileManager(true)}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              title="Gerenciador de Arquivos"
+            >
+              <FolderOpen className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -382,7 +396,7 @@ function App() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {message.role === 'user' ? 'Você' : 'OUDS'}
+                        {message.role === 'user' ? 'Você' : 'Oráculo'}
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(message.timestamp).toLocaleTimeString('pt-BR', {
@@ -413,7 +427,7 @@ function App() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        OUDS
+                        Oráculo
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">
                         digitando...
@@ -427,7 +441,7 @@ function App() {
                     </div>
                   </div>
                 </div>
-              ))}
+              )}
               
               {isLoading && (
                 <div className="flex items-start space-x-3">
@@ -532,6 +546,11 @@ function App() {
             totalSteps={totalSteps}
           />
           
+          <CommandQueue 
+            sessionId={sessionId}
+            isVisible={true}
+          />
+          
           <div className="flex items-end space-x-3">
             <div className="flex-1">
               <Input
@@ -572,15 +591,22 @@ function App() {
           )}
           
           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center space-y-1">
-            <div>OUDS pode cometer erros. Considere verificar informações importantes.</div>
+            <div>Oráculo pode cometer erros. Considere verificar informações importantes.</div>
             <div className="flex items-center justify-center space-x-2">
-              <span>OUDS - Oráculo UDS</span>
+              <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
               <span>v{__OUDS_VERSION__ || '1.0.0'}</span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* File Manager Modal */}
+      <FileManager 
+        isOpen={showFileManager}
+        onClose={() => setShowFileManager(false)}
+        sessionId={sessionId}
+      />
     </div>
   )
 }
