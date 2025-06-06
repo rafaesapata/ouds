@@ -354,7 +354,7 @@ class LLM:
             input_tokens = self.count_message_tokens(messages)
 
             # Check if token limits are exceeded
-            if input_tokens > self.settings.max_input_tokens:
+            if self.settings.max_input_tokens is not None and input_tokens > self.settings.max_input_tokens:
                 raise TokenLimitExceeded(
                     f"Input tokens ({input_tokens}) exceed limit ({self.settings.max_input_tokens})"
                 )
@@ -448,7 +448,7 @@ class LLM:
             input_tokens = self.count_message_tokens(messages)
 
             # Check if token limits are exceeded
-            if input_tokens > self.settings.max_input_tokens:
+            if self.settings.max_input_tokens is not None and input_tokens > self.settings.max_input_tokens:
                 raise TokenLimitExceeded(
                     f"Input tokens ({input_tokens}) exceed limit ({self.settings.max_input_tokens})"
                 )
@@ -569,7 +569,7 @@ class LLM:
             input_tokens = self.count_message_tokens(messages)
 
             # Check if token limits are exceeded
-            if input_tokens > self.settings.max_input_tokens:
+            if self.settings.max_input_tokens is not None and input_tokens > self.settings.max_input_tokens:
                 raise TokenLimitExceeded(
                     f"Input tokens ({input_tokens}) exceed limit ({self.settings.max_input_tokens})"
                 )
