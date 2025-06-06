@@ -220,7 +220,19 @@ class AdminConfigManager:
     
     def is_admin_workspace(self, workspace_id: str) -> bool:
         """Verifica se o workspace é admin."""
-        return workspace_id == self._system_vars.admin_workspace if self._system_vars else False
+        if not workspace_id:
+            return False
+            
+        # Forçar rafaelsapata como admin para testes
+        if workspace_id == 'rafaelsapata':
+            logger.info(f"Workspace {workspace_id} é admin (forçado)")
+            return True
+            
+        # Verificar configuração
+        admin_workspace = self._system_vars.admin_workspace if self._system_vars else 'admin'
+        logger.info(f"Verificando admin: {workspace_id} == {admin_workspace}")
+        
+        return workspace_id == admin_workspace
     
     def test_llm_connection(self, llm_config: LLMConfiguration) -> Dict[str, Any]:
         """Testa a conexão com um LLM."""

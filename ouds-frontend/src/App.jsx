@@ -58,9 +58,12 @@ function App() {
         headers: { 'X-Workspace-ID': workspace }
       });
       
-      if (response.success && response.data.is_admin) {
+      if (response.success && response.data && response.data.is_admin) {
         setIsAdmin(true);
-        console.log('👑 Admin workspace detected');
+        console.log('👑 Admin workspace detected:', response.data);
+      } else {
+        setIsAdmin(false);
+        console.log('ℹ️ Regular workspace (not admin):', response.data);
       }
     } catch (error) {
       console.log('ℹ️ Regular workspace (not admin)');
@@ -982,7 +985,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v1.0.23</span>
+              <span>v1.0.24</span>
               {workspaceId && workspaceId !== 'default' && (
                 <>
                   <span>•</span>
