@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from app.settings import settings
-from app.schema.admin import LLMConfiguration, LLMType, LLMProvider, LLMStatus, SystemVariables
+from app.admin_schema import LLMConfiguration, LLMType, LLMProvider, LLMStatus, SystemVariables
 from app.logger import logger
 
 
@@ -54,9 +54,7 @@ class AdminConfigManager:
         
         # Configuração LLM Text padrão
         text_llm = LLMConfiguration(
-            id="default_text",
-            name="Default Text LLM",
-            type=LLMType.TEXT,
+            llm_type=LLMType.TEXT,
             provider=LLMProvider.OPENAI,
             model=settings.llm_model,
             base_url=settings.llm_base_url,
@@ -65,16 +63,12 @@ class AdminConfigManager:
             max_tokens=settings.llm_max_tokens,
             temperature=settings.llm_temperature,
             status=LLMStatus.ACTIVE if settings.llm_api_key else LLMStatus.INACTIVE,
-            is_default=True,
-            created_at=now,
-            updated_at=now
+            last_test=now
         )
         
         # Configuração LLM Vision padrão
         vision_llm = LLMConfiguration(
-            id="default_vision",
-            name="Default Vision LLM",
-            type=LLMType.VISION,
+            llm_type=LLMType.VISION,
             provider=LLMProvider.OPENAI,
             model=settings.llm_vision_model,
             base_url=settings.llm_vision_base_url,
@@ -83,14 +77,12 @@ class AdminConfigManager:
             max_tokens=settings.llm_vision_max_tokens,
             temperature=settings.llm_vision_temperature,
             status=LLMStatus.ACTIVE if settings.llm_vision_api_key else LLMStatus.INACTIVE,
-            is_default=True,
-            created_at=now,
-            updated_at=now
+            last_test=now
         )
         
         self._llm_configs = {
-            text_llm.id: text_llm,
-            vision_llm.id: vision_llm
+            "text": text_llm,
+            "vision": vision_llm
         }
         
         # Variáveis do sistema

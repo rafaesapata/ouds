@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Header, Depends
 from pydantic import BaseModel
 
 from app.admin_config import admin_config_manager
-from app.schema.admin import (
+from app.admin_schema import (
     LLMConfiguration, SystemVariables, DebugInfo, 
     AdminConfigRequest, AdminConfigResponse, LogEntry
 )

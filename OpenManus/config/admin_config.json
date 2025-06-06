@@ -1,0 +1,36 @@
+{
+  "llm_configurations": [
+    {
+      "llm_type": "text",
+      "provider": "openai",
+      "model": "gpt-4",
+      "base_url": "https://api.openai.com/v1",
+      "api_key": "",
+      "api_type": null,
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "status": "inactive",
+      "last_test": "2025-06-06T07:48:26.911246"
+    },
+    {
+      "llm_type": "vision",
+      "provider": "openai",
+      "model": "gpt-4-vision-preview",
+      "base_url": "https://api.openai.com/v1",
+      "api_key": "",
+      "api_type": null,
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "status": "inactive",
+      "last_test": "2025-06-06T07:48:26.911246"
+    }
+  ],
+  "system_variables": {
+    "admin_workspace": "admin",
+    "llm_text": null,
+    "llm_vision": null,
+    "environment": "development",
+    "debug_mode": false
+  },
+  "last_updated": "2025-06-06T07:48:26.911336"
+}
