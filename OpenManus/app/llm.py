@@ -79,7 +79,20 @@ class LLM:
             organization: Organization ID for the API
         """
         self.model = model
-        self.settings = settings or LLMSettings()
+        
+        # Criar LLMSettings com valores padrão para evitar erro de validação
+        if settings is None:
+            self.settings = LLMSettings(
+                model=model,
+                base_url=api_base or "https://api.openai.com/v1",
+                api_key=api_key or "default_key",
+                api_type="openai",
+                api_version=api_version or "2023-05-15",
+                max_tokens=4096,
+                temperature=1.0
+            )
+        else:
+            self.settings = settings
 
         # Set up the appropriate client based on the model
         if model.startswith("anthropic."):
@@ -351,7 +364,7 @@ class LLM:
                 "model": self.model,
                 "messages": messages,
                 "temperature": temperature if temperature is not None else self.settings.temperature,
-                "max_tokens": self.settings.max_output_tokens,
+                "max_tokens": self.settings.max_tokens,
             }
 
             # Add reasoning parameters for supported models
@@ -445,7 +458,7 @@ class LLM:
                 "model": self.model,
                 "messages": messages,
                 "temperature": temperature if temperature is not None else self.settings.temperature,
-                "max_tokens": self.settings.max_output_tokens,
+                "max_tokens": self.settings.max_tokens,
             }
 
             # Add tools if provided
@@ -566,7 +579,7 @@ class LLM:
                 "model": self.model,
                 "messages": messages,
                 "temperature": temperature if temperature is not None else self.settings.temperature,
-                "max_tokens": self.settings.max_output_tokens,
+                "max_tokens": self.settings.max_tokens,
                 "stream": True,
             }
 
