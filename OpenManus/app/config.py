@@ -310,6 +310,12 @@ class Config:
         }
 
         self._config = AppConfig(**config_dict)
+        
+        # Extrair valores de OpenAI da configuração para acesso direto
+        openai_config = raw_config.get("openai", {})
+        self._openai_api_key = openai_config.get("api_key", "")
+        self._openai_api_base = openai_config.get("api_base", "https://api.openai.com/v1")
+        self._openai_organization = openai_config.get("organization", "")
 
     @property
     def llm(self) -> Dict[str, LLMSettings]:
@@ -341,6 +347,22 @@ class Config:
     def root_path(self) -> Path:
         """Get the root path of the application"""
         return PROJECT_ROOT
+        
+    @property
+    def openai_api_key(self) -> str:
+        """Get the OpenAI API key"""
+        return self._openai_api_key
+        
+    @property
+    def openai_api_base(self) -> str:
+        """Get the OpenAI API base URL"""
+        return self._openai_api_base
+        
+    @property
+    def openai_organization(self) -> str:
+        """Get the OpenAI organization ID"""
+        return self._openai_organization
 
 
 config = Config()
+
