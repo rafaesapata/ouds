@@ -61,6 +61,7 @@ class LLM:
     def __init__(
         self,
         model: str = "gpt-3.5-turbo",
+        config_name: Optional[str] = None,
         settings: Optional[LLMSettings] = None,
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
@@ -72,6 +73,7 @@ class LLM:
 
         Args:
             model: Model identifier to use
+            config_name: Name of the configuration to load from config.toml
             settings: LLM settings
             api_key: API key for the provider
             api_base: Base URL for the API
@@ -80,8 +82,33 @@ class LLM:
         """
         self.model = model
         
-        # Criar LLMSettings com valores padrão para evitar erro de validação
-        if settings is None:
+        # Load configuration from config.toml if config_name is provided
+        if config_name is not None:
+            from app.config import config
+            llm_configs = config.llm
+            if config_name in llm_configs:
+                config_settings = llm_configs[config_name]
+                self.settings = config_settings
+                self.model = config_settings.model
+            elif "default" in llm_configs:
+                config_settings = llm_configs["default"]
+                self.settings = config_settings
+                self.model = config_settings.model
+            else:
+                # Fallback to default settings
+                self.settings = LLMSettings(
+                    model=model,
+                    base_url=api_base or "https://api.openai.com/v1",
+                    api_key=api_key or "default_key",
+                    api_type="openai",
+                    api_version=api_version or "2023-05-15",
+                    max_tokens=4096,
+                    temperature=1.0
+                )
+        elif settings is not None:
+            self.settings = settings
+        else:
+            # Criar LLMSettings com valores padrão para evitar erro de validação
             self.settings = LLMSettings(
                 model=model,
                 base_url=api_base or "https://api.openai.com/v1",
@@ -91,54 +118,54 @@ class LLM:
                 max_tokens=4096,
                 temperature=1.0
             )
-        else:
-            self.settings = settings
 
         # Set up the appropriate client based on the model
-        if model.startswith("anthropic."):
+        if self.model.startswith("anthropic."):
             # Bedrock Claude models
             self.client = BedrockClient(
-                model_id=model,
-                api_key=api_key,
-                region=config.aws_region,
+                model_id=self.model,
+                api_key=self.settings.api_key,
+                region=getattr(config, 'aws_region', 'us-east-1'),
             )
-        elif model.startswith("claude-"):
+        elif self.model.startswith("claude-"):
             # Direct Anthropic API
             from anthropic import AsyncAnthropic
 
-            self.client = AsyncAnthropic(api_key=api_key or config.anthropic_api_key)
-        elif "azure" in (api_base or "").lower():
+            self.client = AsyncAnthropic(api_key=self.settings.api_key)
+        elif "azure" in self.settings.base_url.lower():
             # Azure OpenAI
+            from openai import AsyncAzureOpenAI
             self.client = AsyncAzureOpenAI(
-                api_key=api_key or config.azure_api_key,
-                api_version=api_version or config.azure_api_version,
-                azure_endpoint=api_base or config.azure_api_base,
+                api_key=self.settings.api_key,
+                api_version=self.settings.api_version,
+                azure_endpoint=self.settings.base_url,
             )
         else:
             # OpenAI
+            from openai import AsyncOpenAI
             self.client = AsyncOpenAI(
-                api_key=api_key or config.openai_api_key,
-                base_url=api_base or config.openai_api_base,
-                organization=organization or config.openai_organization,
+                api_key=self.settings.api_key,
+                base_url=self.settings.base_url,
+                organization=getattr(self.settings, 'organization', None),
             )
 
         # Set up tokenizer for the model
         try:
-            if model.startswith("gpt-"):
+            if self.model.startswith("gpt-"):
                 # OpenAI models
-                if model == "gpt-4o":
+                if self.model == "gpt-4o":
                     self.tokenizer = tiktoken.encoding_for_model("gpt-4")
                 else:
-                    self.tokenizer = tiktoken.encoding_for_model(model)
-            elif model.startswith("text-embedding-"):
+                    self.tokenizer = tiktoken.encoding_for_model(self.model)
+            elif self.model.startswith("text-embedding-"):
                 # OpenAI embedding models
                 self.tokenizer = tiktoken.encoding_for_model("text-embedding-ada-002")
             else:
                 # Default to cl100k_base for other models
                 self.tokenizer = tiktoken.get_encoding("cl100k_base")
         except Exception as e:
-            logger.warning(f"Failed to load tokenizer for {model}: {e}")
-            # Fall back to cl100k_base
+            logger.warning(f"Failed to load tokenizer for {self.model}: {e}")
+            # Fallback to cl100k_base
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
     def count_tokens(self, text: str) -> int:
