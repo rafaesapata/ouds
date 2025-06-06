@@ -15,6 +15,7 @@ from app.admin_schema import (
     LLMConfiguration, SystemVariables, DebugInfo, 
     AdminConfigRequest, AdminConfigResponse, LogEntry
 )
+from app.log_manager import log_manager
 from app.logger import logger
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -137,49 +138,49 @@ async def test_llm_connection(
 async def get_debug_info(workspace_id: str = Depends(verify_admin_workspace)):
     """Retorna informações de debug do sistema."""
     try:
-        # Logs recentes (simulado por enquanto)
-        recent_logs = [
-            LogEntry(
-                timestamp=datetime.now().isoformat(),
-                level="INFO",
-                source="backend",
-                message="Sistema iniciado com sucesso",
-                details={"component": "api_server"}
-            ),
-            LogEntry(
-                timestamp=datetime.now().isoformat(),
-                level="DEBUG",
-                source="frontend",
-                message="Componente AdminSettings carregado",
-                details={"workspace": workspace_id}
+        # Logs recentes do sistema
+        recent_logs = log_manager.get_all_logs(limit=50)
+        
+        # Converter para formato LogEntry
+        log_entries = []
+        for log in recent_logs:
+            log_entry = LogEntry(
+                timestamp=log["timestamp"],
+                level=log["level"],
+                source=log["source"],
+                message=log["message"],
+                details=log.get("details", {})
             )
-        ]
+            log_entries.append(log_entry)
         
         # Variáveis do sistema
         system_vars = admin_config_manager.get_system_variables()
         
-        # Status do sistema (simulado)
+        # Estatísticas dos logs
+        log_stats = log_manager.get_log_statistics()
+        
+        # Status do sistema
         system_status = {
             "backend": {
                 "status": "online",
-                "uptime": "2h 30m",
-                "memory": "256MB"
+                "uptime": "running",
+                "logs_captured": log_stats.get("backend", {}).get("total", 0)
+            },
+            "frontend": {
+                "status": "active",
+                "logs_captured": log_stats.get("frontend", {}).get("total", 0)
             },
             "llm": {
-                "text_status": "active",
-                "vision_status": "active"
+                "text_configs": len([c for c in admin_config_manager.get_llm_configurations() if c.llm_type.value == "text"]),
+                "vision_configs": len([c for c in admin_config_manager.get_llm_configurations() if c.llm_type.value == "vision"])
             },
-            "performance": {
-                "requests_per_minute": "12",
-                "avg_response_time": "1.2s",
-                "active_sessions": "3"
-            }
+            "logs": log_stats
         }
         
         debug_info = DebugInfo(
             system_variables=system_vars,
             llm_configurations=admin_config_manager.get_llm_configurations(),
-            recent_logs=recent_logs,
+            recent_logs=log_entries,
             system_status=system_status
         )
         
@@ -197,8 +198,7 @@ async def get_debug_info(workspace_id: str = Depends(verify_admin_workspace)):
 async def clear_logs(workspace_id: str = Depends(verify_admin_workspace)):
     """Limpa os logs do sistema."""
     try:
-        # Implementar limpeza real dos logs
-        logger.info("Logs limpos pelo administrador")
+        log_manager.clear_all_logs()
         return {
             "success": True,
             "message": "Logs limpos com sucesso"
@@ -212,13 +212,44 @@ async def clear_logs(workspace_id: str = Depends(verify_admin_workspace)):
 async def download_logs(workspace_id: str = Depends(verify_admin_workspace)):
     """Baixa os logs do sistema."""
     try:
-        # Implementar download real dos logs
-        logs_content = "Log content would be here..."
+        logs_content = log_manager.export_logs()
         return {
             "success": True,
-            "data": logs_content
+            "data": logs_content,
+            "filename": f"ouds_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         }
     except Exception as e:
         logger.error(f"Erro ao baixar logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/logs/frontend")
+async def add_frontend_log(
+    log_data: Dict[str, Any],
+    workspace_id: str = Depends(verify_admin_workspace)
+):
+    """Adiciona log do frontend."""
+    try:
+        log_manager.add_frontend_log(log_data)
+        return {
+            "success": True,
+            "message": "Log do frontend adicionado"
+        }
+    except Exception as e:
+        logger.error(f"Erro ao adicionar log do frontend: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/logs/stats")
+async def get_log_stats(workspace_id: str = Depends(verify_admin_workspace)):
+    """Retorna estatísticas dos logs."""
+    try:
+        stats = log_manager.get_log_statistics()
+        return {
+            "success": True,
+            "data": stats
+        }
+    except Exception as e:
+        logger.error(f"Erro ao obter estatísticas dos logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 

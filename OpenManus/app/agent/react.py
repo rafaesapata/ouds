@@ -4,7 +4,8 @@ from typing import Optional
 from pydantic import Field
 
 from app.agent.base import BaseAgent
-from app.llm import LLM
+from app.llm_admin import get_text_llm, AdminLLM
+from app.admin_schema import LLMType
 from app.schema import AgentState, Memory
 
 
@@ -15,7 +16,7 @@ class ReActAgent(BaseAgent, ABC):
     system_prompt: Optional[str] = None
     next_step_prompt: Optional[str] = None
 
-    llm: Optional[LLM] = Field(default_factory=LLM)
+    llm: Optional[AdminLLM] = Field(default_factory=lambda: get_text_llm())
     memory: Memory = Field(default_factory=Memory)
     state: AgentState = AgentState.IDLE
 

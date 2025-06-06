@@ -1,7 +1,7 @@
 {
   "project": {
     "name": "OUDS - Oráculo UDS",
-    "version": "1.0.24",
+    "version": "1.0.25",
     "description": "Sistema de IA conversacional baseado no OpenManus com interface web moderna e sistema de administração",
     "created": "2025-06-05",
     "author": "Equipe UDS",
@@ -47,7 +47,12 @@
       "Suporte a LLM Vision",
       "Interface de debug",
       "Logs em tempo real",
-      "Workspace admin"
+      "Workspace admin",
+      "Sistema de logs avançado",
+      "Carregamento dinâmico de configurações",
+      "Integração LLM admin com chat",
+      "Debug panel com logs reais",
+      "Variáveis do sistema no debug"
     ],
     "planned": [
       "Autenticação de usuários",
