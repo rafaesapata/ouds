@@ -54,6 +54,7 @@ class AdminConfigManager:
         
         # Configuração LLM Text padrão
         text_llm = LLMConfiguration(
+            id="default_text",
             llm_type=LLMType.TEXT,
             provider=LLMProvider.OPENAI,
             model=settings.llm_model,
@@ -63,11 +64,15 @@ class AdminConfigManager:
             max_tokens=settings.llm_max_tokens,
             temperature=settings.llm_temperature,
             status=LLMStatus.ACTIVE if settings.llm_api_key else LLMStatus.INACTIVE,
-            last_test=now
+            is_default=True,
+            last_test=now,
+            created_at=now,
+            updated_at=now
         )
         
         # Configuração LLM Vision padrão
         vision_llm = LLMConfiguration(
+            id="default_vision",
             llm_type=LLMType.VISION,
             provider=LLMProvider.OPENAI,
             model=settings.llm_vision_model,
@@ -77,12 +82,15 @@ class AdminConfigManager:
             max_tokens=settings.llm_vision_max_tokens,
             temperature=settings.llm_vision_temperature,
             status=LLMStatus.ACTIVE if settings.llm_vision_api_key else LLMStatus.INACTIVE,
-            last_test=now
+            is_default=True,
+            last_test=now,
+            created_at=now,
+            updated_at=now
         )
         
         self._llm_configs = {
-            "text": text_llm,
-            "vision": vision_llm
+            text_llm.id: text_llm,
+            vision_llm.id: vision_llm
         }
         
         # Variáveis do sistema
@@ -125,7 +133,7 @@ class AdminConfigManager:
     def get_default_llm(self, llm_type: LLMType) -> Optional[LLMConfiguration]:
         """Retorna o LLM padrão para um tipo específico."""
         for config in self._llm_configs.values():
-            if config.type == llm_type and config.is_default and config.status == LLMStatus.ACTIVE:
+            if config.llm_type == llm_type and config.is_default and config.status == LLMStatus.ACTIVE:
                 return config
         return None
     
@@ -137,7 +145,7 @@ class AdminConfigManager:
             # Se está sendo marcado como padrão, desmarcar outros do mesmo tipo
             if llm_config.is_default:
                 for config in self._llm_configs.values():
-                    if config.type == llm_config.type and config.id != llm_config.id:
+                    if config.llm_type == llm_config.llm_type and config.id != llm_config.id:
                         config.is_default = False
             
             self._llm_configs[llm_config.id] = llm_config

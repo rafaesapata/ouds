@@ -33,6 +33,7 @@ class LLMStatus(str, Enum):
 
 class LLMConfiguration(BaseModel):
     """Configuração de um LLM."""
+    id: str = Field(..., description="ID único da configuração")
     llm_type: LLMType = Field(..., description="Tipo do LLM (text ou vision)")
     provider: LLMProvider = Field(default=LLMProvider.OPENAI, description="Provedor do LLM")
     model: str = Field(..., description="Nome do modelo")
@@ -42,7 +43,10 @@ class LLMConfiguration(BaseModel):
     max_tokens: int = Field(default=8192, description="Máximo de tokens")
     temperature: float = Field(default=0.0, description="Temperatura do modelo")
     status: LLMStatus = Field(default=LLMStatus.INACTIVE, description="Status da conexão")
+    is_default: bool = Field(default=False, description="Se é a configuração padrão")
     last_test: Optional[str] = Field(default=None, description="Último teste de conexão")
+    created_at: Optional[str] = Field(default=None, description="Data de criação")
+    updated_at: Optional[str] = Field(default=None, description="Data de atualização")
 
 
 class SystemVariables(BaseModel):
