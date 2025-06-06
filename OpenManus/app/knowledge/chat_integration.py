@@ -20,6 +20,64 @@ logger = logging.getLogger(__name__)
 # Rastreamento de saudações por sessão
 greeting_sessions = set()
 
+async def get_context_for_chat(message: str, workspace_id: str = "default") -> Optional[str]:
+    """
+    Obtém contexto relevante para uma mensagem de chat a partir do sistema de conhecimento.
+    
+    Args:
+        message: A mensagem do usuário
+        workspace_id: ID do workspace
+        
+    Returns:
+        String com o contexto relevante ou None se não houver contexto
+    """
+    try:
+        # Importar módulos de conhecimento necessários
+        from app.knowledge import knowledge_manager
+        from app.knowledge.file_integration import get_file_context_for_chat
+        
+        # Log do workspace sendo usado
+        logger.info(f"Obtendo contexto para mensagem no workspace_id: {workspace_id}")
+        
+        # Buscar conhecimento relevante do workspace
+        relevant_knowledge = knowledge_manager.search_knowledge(workspace_id, message, limit=5)
+        
+        # Verificar se há referências a arquivos na mensagem
+        file_context = get_file_context_for_chat(workspace_id, message)
+        
+        # Construir contexto combinado
+        combined_context = ""
+        
+        # Adicionar conhecimento relevante do workspace
+        if relevant_knowledge:
+            workspace_context = "Conhecimento específico do workspace:\n"
+            for entry in relevant_knowledge:
+                workspace_context += f"- {entry.content}\n"
+                # Atualizar estatísticas de uso
+                knowledge_manager.update_knowledge_usage(workspace_id, entry.id)
+            
+            combined_context += workspace_context
+            logger.info(f"Conhecimento do workspace aplicado ao contexto: {len(relevant_knowledge)} entradas")
+        
+        # Adicionar contexto de arquivos
+        if file_context:
+            if combined_context:
+                combined_context += "\n\n"
+            combined_context += f"Informações de arquivos do workspace:\n{file_context}"
+            logger.info("Contexto de arquivos aplicado")
+        
+        # Retornar contexto combinado se existir
+        if combined_context:
+            logger.info(f"Contexto total: {len(combined_context)} caracteres")
+            return combined_context
+        else:
+            logger.info("Nenhum contexto relevante encontrado")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Erro ao obter contexto para chat: {e}")
+        return None
+
 async def process_chat_with_knowledge(session_id: str, message: str, workspace_id: str = "default") -> Dict:
     """
     Processa chat com integração completa do sistema de conhecimento

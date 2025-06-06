@@ -216,6 +216,22 @@ class ToolCallAgent(ReActAgent):
                 tool_calls = []
                 if accumulated_tool_calls:
                     for tc in accumulated_tool_calls:
+                        # Adicionar verificações de tipo/existência de atributos
+                        if not isinstance(tc, dict):
+                            logger.warning(f"Tool call is not a dictionary: {tc}")
+                            continue
+                            
+                        # Verificar se 'function' existe e é um dicionário
+                        if "function" not in tc or not isinstance(tc["function"], dict):
+                            logger.warning(f"Tool call missing 'function' or not a dictionary: {tc}")
+                            continue
+                            
+                        # Verificar se 'function' contém 'name' e 'arguments'
+                        if "name" not in tc["function"] or "arguments" not in tc["function"]:
+                            logger.warning(f"Tool call function missing required fields: {tc}")
+                            continue
+                            
+                        # Criar o objeto ToolCall com valores seguros
                         tool_calls.append(SchemaToolCall(
                             id=tc.get("id", ""),
                             type=tc.get("type", "function"),
