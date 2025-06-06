@@ -69,3 +69,20 @@ class ToolCollection:
         for tool in tools:
             self.add_tool(tool)
         return self
+
+    def to_openai_tools(self) -> List[Dict[str, Any]]:
+        """Convert the tool collection to OpenAI tools format.
+        
+        Returns a list of tools in the format expected by OpenAI API:
+        [
+            {
+                "type": "function",
+                "function": {
+                    "name": "tool_name",
+                    "description": "tool_description",
+                    "parameters": {...}
+                }
+            }
+        ]
+        """
+        return [tool.to_param() for tool in self.tools]
