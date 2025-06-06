@@ -93,15 +93,19 @@ class LogManager:
     
     def _setup_log_capture(self):
         """Configura captura de logs do sistema."""
-        # Adicionar handler ao logger raiz para capturar todos os logs
-        root_logger = logging.getLogger()
-        root_logger.addHandler(self.log_capture)
-        
-        # Adicionar handler ao logger específico do OUDS
+        # Adicionar handler apenas ao logger específico do OUDS para evitar loops
         ouds_logger = logging.getLogger("ouds")
         ouds_logger.addHandler(self.log_capture)
         
-        logger.info("Sistema de captura de logs configurado")
+        # Adicionar handler a outros loggers específicos, mas não ao root
+        fastapi_logger = logging.getLogger("fastapi")
+        fastapi_logger.addHandler(self.log_capture)
+        
+        uvicorn_logger = logging.getLogger("uvicorn")
+        uvicorn_logger.addHandler(self.log_capture)
+        
+        # Usar print em vez de logger para evitar loop infinito
+        print("Sistema de captura de logs configurado")
     
     def add_frontend_log(self, log_entry: Dict[str, Any]):
         """Adiciona log do frontend."""
@@ -120,7 +124,7 @@ class LogManager:
                 self.frontend_logs.append(standardized_log)
                 
         except Exception as e:
-            logger.error(f"Erro ao adicionar log do frontend: {e}")
+            print(f"Erro ao adicionar log do frontend: {e}")
     
     def get_backend_logs(self, limit: Optional[int] = None, level: Optional[str] = None) -> List[Dict]:
         """Retorna logs do backend."""
@@ -161,18 +165,18 @@ class LogManager:
         self.log_capture.clear_logs()
         with self.frontend_lock:
             self.frontend_logs.clear()
-        logger.info("Todos os logs foram limpos")
+        print("Todos os logs foram limpos")
     
     def clear_backend_logs(self):
         """Limpa apenas logs do backend."""
         self.log_capture.clear_logs()
-        logger.info("Logs do backend foram limpos")
+        print("Logs do backend foram limpos")
     
     def clear_frontend_logs(self):
         """Limpa apenas logs do frontend."""
         with self.frontend_lock:
             self.frontend_logs.clear()
-        logger.info("Logs do frontend foram limpos")
+        print("Logs do frontend foram limpos")
     
     def export_logs(self, include_backend: bool = True, include_frontend: bool = True) -> str:
         """Exporta logs para formato JSON."""
@@ -194,7 +198,7 @@ class LogManager:
             return json.dumps(export_data, indent=2, ensure_ascii=False)
             
         except Exception as e:
-            logger.error(f"Erro ao exportar logs: {e}")
+            print(f"Erro ao exportar logs: {e}")
             return json.dumps({"error": str(e)})
     
     def get_log_statistics(self) -> Dict[str, Any]:
@@ -229,7 +233,7 @@ class LogManager:
             }
             
         except Exception as e:
-            logger.error(f"Erro ao obter estatísticas dos logs: {e}")
+            print(f"Erro ao obter estatísticas dos logs: {e}")
             return {"error": str(e)}
 
 
