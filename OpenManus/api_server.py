@@ -31,6 +31,9 @@ from app.agent.session import Command, CommandQueueResponse, SessionManager
 # Import logger
 from app.logger import logger
 
+# Import admin router
+from app.api.admin import router as admin_router
+
 # Create FastAPI app
 app = FastAPI(
     title="OUDS API",
@@ -49,6 +52,9 @@ app.add_middleware(
 
 # Create session manager
 session_manager = SessionManager()
+
+# Include routers
+app.include_router(admin_router)
 
 
 # Models

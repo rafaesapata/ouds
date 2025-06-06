@@ -48,7 +48,19 @@ export const API_ENDPOINTS = {
   GITHUB_CONFIG: '/service/api/github/config',   // /service/api/github/config → (rewrite) → /api/github/config
   GITHUB_REPOS: '/service/api/github/repos',     // /service/api/github/repos → (rewrite) → /api/github/repos
   GITHUB_CLONE: '/service/api/github/clone',     // /service/api/github/clone → (rewrite) → /api/github/clone
-  GITHUB_COMMIT: '/service/api/github/commit'    // /service/api/github/commit → (rewrite) → /api/github/commit
+  GITHUB_COMMIT: '/service/api/github/commit',   // /service/api/github/commit → (rewrite) → /api/github/commit
+  
+  // Admin endpoints
+  admin: {
+    checkAdmin: '/service/api/admin/check',      // /service/api/admin/check → (rewrite) → /api/admin/check
+    getConfig: '/service/api/admin/config',      // /service/api/admin/config → (rewrite) → /api/admin/config
+    updateLLM: '/service/api/admin/llm',         // /service/api/admin/llm → (rewrite) → /api/admin/llm
+    deleteLLM: '/service/api/admin/llm',         // /service/api/admin/llm/{id} → (rewrite) → /api/admin/llm/{id}
+    testLLM: '/service/api/admin/llm/test',      // /service/api/admin/llm/test → (rewrite) → /api/admin/llm/test
+    getDebugInfo: '/service/api/admin/debug',    // /service/api/admin/debug → (rewrite) → /api/admin/debug
+    clearLogs: '/service/api/admin/logs/clear',  // /service/api/admin/logs/clear → (rewrite) → /api/admin/logs/clear
+    downloadLogs: '/service/api/admin/logs/download' // /service/api/admin/logs/download → (rewrite) → /api/admin/logs/download
+  }
 }
 
 // Função para construir URL completa da API

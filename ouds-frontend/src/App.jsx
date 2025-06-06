@@ -2,13 +2,15 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Input } from '@/components/ui/input.jsx'
 import { ScrollArea } from '@/components/ui/scroll-area.jsx'
-import { Send, User, Bot, Loader2, Settings, RotateCcw, FolderOpen, Paperclip, Brain, MessageSquare } from 'lucide-react'
+import { Send, User, Bot, Loader2, Settings, RotateCcw, FolderOpen, Paperclip, Brain, MessageSquare, Bug } from 'lucide-react'
 import { apiRequest, checkBackendHealth, API_ENDPOINTS, buildApiUrl } from '@/lib/api.js'
 import { useTaskProgressWebSocket } from '@/lib/taskProgress.js'
 import TaskProgress from '@/components/TaskProgress.jsx'
 import FileManager from '@/components/FileManager.jsx'
 import CommandQueue from '@/components/CommandQueue.jsx'
 import KnowledgeManager from '@/components/KnowledgeManager.jsx'
+import AdminSettings from '@/components/AdminSettings.jsx'
+import DebugPanel from '@/components/DebugPanel.jsx'
 import ReactMarkdown from 'react-markdown'
 import './App.css'
 
@@ -26,10 +28,13 @@ function App() {
   const [attachedFile, setAttachedFile] = useState(null)
   const [isUploadingFile, setIsUploadingFile] = useState(false)
   const [activeTab, setActiveTab] = useState('chat') // Nova state para controlar abas
+  const [showAdminSettings, setShowAdminSettings] = useState(false)
+  const [showDebugPanel, setShowDebugPanel] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
   
-  // Extract workspace from URL
+  // Extract workspace from URL and check admin status
   useEffect(() => {
     const path = window.location.pathname;
     const workspaceMatch = path.match(/^\/workspace\/(.+)$/);
@@ -37,10 +42,31 @@ function App() {
       const workspace = workspaceMatch[1];
       setWorkspaceId(workspace);
       console.log('🏢 Workspace detected:', workspace);
+      
+      // Check if this workspace is admin
+      checkAdminStatus(workspace);
     } else {
       setWorkspaceId('default');
     }
   }, []);
+
+  // Check admin status
+  const checkAdminStatus = async (workspace) => {
+    try {
+      const response = await apiRequest(API_ENDPOINTS.admin.checkAdmin, {
+        method: 'GET',
+        headers: { 'X-Workspace-ID': workspace }
+      });
+      
+      if (response.success && response.data.is_admin) {
+        setIsAdmin(true);
+        console.log('👑 Admin workspace detected');
+      }
+    } catch (error) {
+      console.log('ℹ️ Regular workspace (not admin)');
+      setIsAdmin(false);
+    }
+  };
   
   // Use WebSocket hook for real-time task progress
   const { tasks, currentStep, totalSteps, resetTasks } = useTaskProgressWebSocket(sessionId)
@@ -514,13 +540,28 @@ function App() {
             >
               <FolderOpen className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
+            {isAdmin && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDebugPanel(true)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  title="Painel de Debug"
+                >
+                  <Bug className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAdminSettings(true)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  title="Configurações Administrativas"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
         
@@ -941,7 +982,7 @@ function App() {
             <div className="flex items-center justify-center space-x-2">
               <span>Oráculo - Assistente Inteligente UDS</span>
               <span>•</span>
-              <span>v2.3.0</span>
+              <span>v1.0.23</span>
               {workspaceId && workspaceId !== 'default' && (
                 <>
                   <span>•</span>
@@ -963,10 +1004,24 @@ function App() {
       )}
 
       {/* File Manager Modal */}
-      <FileManager 
+      <FileManager
         isOpen={showFileManager}
         onClose={() => setShowFileManager(false)}
         sessionId={sessionId}
+      />
+
+      {/* Admin Settings Modal */}
+      <AdminSettings
+        isOpen={showAdminSettings}
+        onClose={() => setShowAdminSettings(false)}
+        workspaceId={workspaceId}
+      />
+
+      {/* Debug Panel Modal */}
+      <DebugPanel
+        isOpen={showDebugPanel}
+        onClose={() => setShowDebugPanel(false)}
+        workspaceId={workspaceId}
       />
     </div>
   )

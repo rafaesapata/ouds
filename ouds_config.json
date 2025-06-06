@@ -1,8 +1,8 @@
 {
   "project": {
     "name": "OUDS - Oráculo UDS",
-    "version": "1.0.22",
-    "description": "Sistema de IA conversacional baseado no OpenManus com interface web moderna",
+    "version": "1.0.23",
+    "description": "Sistema de IA conversacional baseado no OpenManus com interface web moderna e sistema de administração",
     "created": "2025-06-05",
     "author": "Equipe UDS",
     "license": "MIT"
@@ -41,7 +41,13 @@
       "Indicadores de status",
       "Histórico de conversas",
       "Botão nova conversa",
-      "Configuração via .env"
+      "Configuração via .env",
+      "Sistema de administração",
+      "Configuração dinâmica de LLMs",
+      "Suporte a LLM Vision",
+      "Interface de debug",
+      "Logs em tempo real",
+      "Workspace admin"
     ],
     "planned": [
       "Autenticação de usuários",
