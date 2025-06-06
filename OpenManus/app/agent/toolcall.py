@@ -8,7 +8,7 @@ from app.agent.react import ReActAgent
 from app.exceptions import TokenLimitExceeded
 from app.logger import logger
 from app.prompt.toolcall import NEXT_STEP_PROMPT, SYSTEM_PROMPT
-from app.schema import TOOL_CHOICE_TYPE, AgentState, Message, ToolCall, ToolChoice
+from app.schema import TOOL_CHOICE_TYPE, AgentState, Message, ToolCall, ToolChoice, Function
 from app.tool import CreateChatCompletion, Terminate, ToolCollection
 
 
@@ -209,63 +209,105 @@ class ToolCallAgent(ReActAgent):
                         yield chunk["content"]
                     
                     if chunk.get("tool_calls"):
-                        accumulated_tool_calls.extend(chunk["tool_calls"])
+                        # Verificar se tool_calls é uma lista
+                        tool_calls_data = chunk.get("tool_calls")
+                        if isinstance(tool_calls_data, list):
+                            # Processar cada tool call com verificações robustas
+                            for tc in tool_calls_data:
+                                try:
+                                    # Verificar se é um dicionário válido
+                                    if not isinstance(tc, dict):
+                                        logger.warning(f"Tool call is not a dictionary: {tc}")
+                                        continue
+                                    
+                                    # Adicionar à lista de tool calls acumulados
+                                    accumulated_tool_calls.append(tc)
+                                except Exception as e:
+                                    logger.warning(f"Error processing tool call: {e}")
+                                    continue
+                        else:
+                            logger.warning(f"Tool calls is not a list: {tool_calls_data}")
                 
                 # Create the complete response message
                 from app.schema import ToolCall as SchemaToolCall
+                from app.schema import Function as SchemaFunction
+                
+                # Processar tool calls acumulados com verificações robustas
                 tool_calls = []
                 if accumulated_tool_calls:
                     for tc in accumulated_tool_calls:
-                        # Adicionar verificações de tipo/existência de atributos
-                        if not isinstance(tc, dict):
-                            logger.warning(f"Tool call is not a dictionary: {tc}")
-                            continue
+                        try:
+                            # Verificações robustas para garantir que temos um dicionário válido
+                            if not isinstance(tc, dict):
+                                logger.warning(f"Tool call is not a dictionary: {tc}")
+                                continue
                             
-                        # Verificar se 'function' existe e é um dicionário
-                        if "function" not in tc or not isinstance(tc["function"], dict):
-                            logger.warning(f"Tool call missing 'function' or not a dictionary: {tc}")
-                            continue
+                            # Verificar se 'function' existe e é um dicionário
+                            if "function" not in tc:
+                                logger.warning(f"Tool call missing 'function' key: {tc}")
+                                continue
                             
-                        # Verificar se 'function' contém 'name' e 'arguments'
-                        if "name" not in tc["function"] or "arguments" not in tc["function"]:
-                            logger.warning(f"Tool call function missing required fields: {tc}")
-                            continue
+                            function_data = tc["function"]
+                            if not isinstance(function_data, dict):
+                                logger.warning(f"Tool call function is not a dictionary: {function_data}")
+                                continue
                             
-                        # Criar o objeto ToolCall com valores seguros
-                        tool_calls.append(SchemaToolCall(
-                            id=tc.get("id", ""),
-                            type=tc.get("type", "function"),
-                            function={
-                                "name": tc["function"]["name"],
-                                "arguments": tc["function"]["arguments"]
-                            }
-                        ))
+                            # Verificar se 'function' contém 'name' e 'arguments'
+                            if "name" not in function_data:
+                                logger.warning(f"Tool call function missing 'name': {function_data}")
+                                continue
+                            
+                            if "arguments" not in function_data:
+                                logger.warning(f"Tool call function missing 'arguments': {function_data}")
+                                function_data["arguments"] = "{}"  # Fornecer um valor padrão
+                            
+                            # Criar o objeto Function
+                            function = SchemaFunction(
+                                name=function_data["name"],
+                                arguments=function_data["arguments"]
+                            )
+                            
+                            # Criar o objeto ToolCall
+                            tool_calls.append(SchemaToolCall(
+                                id=tc.get("id", ""),
+                                type=tc.get("type", "function"),
+                                function=function
+                            ))
+                        except Exception as e:
+                            logger.warning(f"Error creating tool call object: {e}")
+                            continue
 
                 # Create assistant message
-                response = Message(
-                    role="assistant",
-                    content=accumulated_content if accumulated_content else None,
-                    tool_calls=tool_calls if tool_calls else None
-                )
+                try:
+                    response = Message(
+                        role="assistant",
+                        content=accumulated_content if accumulated_content else None,
+                        tool_calls=tool_calls if tool_calls else None
+                    )
 
-                # Add assistant response to messages
-                self.messages += [response]
+                    # Add assistant response to messages
+                    self.messages += [response]
 
-                # Process tool calls if any
-                if response.tool_calls:
-                    self.tool_calls = response.tool_calls
-                    
-                    # Act phase
-                    if not await self.act():
-                        break
-                else:
-                    # No tool calls, check if we're done
-                    if response.content and any(
-                        special_name in response.content.lower()
-                        for special_name in self.special_tool_names
-                    ):
-                        self.state = AgentState.COMPLETED
-                        break
+                    # Process tool calls if any
+                    if response.tool_calls:
+                        self.tool_calls = response.tool_calls
+                        
+                        # Act phase
+                        if not await self.act():
+                            break
+                    else:
+                        # No tool calls, check if we're done
+                        if response.content and any(
+                            special_name in response.content.lower()
+                            for special_name in self.special_tool_names
+                        ):
+                            self.state = AgentState.COMPLETED
+                            break
+                except Exception as e:
+                    logger.error(f"Error creating or processing response: {e}")
+                    yield {"error": str(e)}
+                    self.state = AgentState.ERROR
+                    break
             
             except Exception as e:
                 logger.error(f"Error in streaming run: {e}")

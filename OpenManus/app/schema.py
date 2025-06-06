@@ -1,6 +1,6 @@
 from enum import Enum
 from enum import Enum
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union, Dict
 
 from pydantic import BaseModel, Field
 
@@ -42,6 +42,35 @@ class AgentState(str, Enum):
 class Function(BaseModel):
     name: str
     arguments: str
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Function":
+        """Create Function from dictionary.
+        
+        Args:
+            data: Dictionary containing function data
+            
+        Returns:
+            Function instance
+        """
+        if not isinstance(data, dict):
+            raise TypeError(f"Expected dict, got {type(data)}")
+        
+        return cls(
+            name=data.get("name", ""),
+            arguments=data.get("arguments", "")
+        )
+    
+    def model_dump(self) -> Dict[str, Any]:
+        """Convert to dictionary format.
+        
+        Returns:
+            Dictionary representation of the function
+        """
+        return {
+            "name": self.name,
+            "arguments": self.arguments
+        }
 
 
 class ToolCall(BaseModel):
@@ -50,6 +79,31 @@ class ToolCall(BaseModel):
     id: str
     type: str = "function"
     function: Function
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ToolCall":
+        """Create ToolCall from dictionary.
+        
+        Args:
+            data: Dictionary containing tool call data
+            
+        Returns:
+            ToolCall instance
+        """
+        if not isinstance(data, dict):
+            raise TypeError(f"Expected dict, got {type(data)}")
+        
+        function_data = data.get("function", {})
+        if not isinstance(function_data, dict):
+            function_data = {}
+        
+        function = Function.from_dict(function_data)
+        
+        return cls(
+            id=data.get("id", ""),
+            type=data.get("type", "function"),
+            function=function
+        )
 
 
 class Message(BaseModel):
@@ -144,10 +198,67 @@ class Message(BaseModel):
             content: Optional message content
             base64_image: Optional base64 encoded image
         """
-        formatted_calls = [
-            {"id": call.id, "function": call.function.model_dump(), "type": "function"}
-            for call in tool_calls
-        ]
+        formatted_calls = []
+        
+        for call in tool_calls:
+            try:
+                # Handle different types of tool calls
+                if hasattr(call, "function") and hasattr(call.function, "model_dump"):
+                    # Case 1: call is a pydantic model with model_dump method
+                    formatted_calls.append({
+                        "id": call.id,
+                        "function": call.function.model_dump(),
+                        "type": "function"
+                    })
+                elif hasattr(call, "function") and hasattr(call.function, "dict"):
+                    # Case 2: call is a pydantic model with dict method
+                    formatted_calls.append({
+                        "id": call.id,
+                        "function": call.function.dict(),
+                        "type": "function"
+                    })
+                elif isinstance(call, dict) and "function" in call:
+                    # Case 3: call is a dictionary
+                    function_data = call["function"]
+                    if isinstance(function_data, dict):
+                        # Function is already a dictionary
+                        formatted_calls.append({
+                            "id": call.get("id", ""),
+                            "function": {
+                                "name": function_data.get("name", ""),
+                                "arguments": function_data.get("arguments", "")
+                            },
+                            "type": call.get("type", "function")
+                        })
+                    elif hasattr(function_data, "model_dump"):
+                        # Function has model_dump method
+                        formatted_calls.append({
+                            "id": call.get("id", ""),
+                            "function": function_data.model_dump(),
+                            "type": call.get("type", "function")
+                        })
+                    elif hasattr(function_data, "dict"):
+                        # Function has dict method
+                        formatted_calls.append({
+                            "id": call.get("id", ""),
+                            "function": function_data.dict(),
+                            "type": call.get("type", "function")
+                        })
+                    else:
+                        # Function is an object with name and arguments attributes
+                        formatted_calls.append({
+                            "id": call.get("id", ""),
+                            "function": {
+                                "name": getattr(function_data, "name", ""),
+                                "arguments": getattr(function_data, "arguments", "")
+                            },
+                            "type": call.get("type", "function")
+                        })
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Error formatting tool call: {e}")
+                continue
+        
         return cls(
             role=Role.ASSISTANT,
             content=content,
@@ -186,3 +297,4 @@ class Memory(BaseModel):
     def to_dict_list(self) -> List[dict]:
         """Convert messages to list of dicts"""
         return [msg.to_dict() for msg in self.messages]
+
